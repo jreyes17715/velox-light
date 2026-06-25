@@ -1,0 +1,88 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  sapUserId    String   @unique
+  name         String
+  email        String?  @unique
+  role         String   // "directora" | "consultora"
+  unitName     String?  // Nombre de la unidad (solo directoras)
+  isSuperAdmin Boolean  @default(false)
+
+  // Jerarquía directora → consultoras / directora → directora madre
+  supervisorId String?
+  supervisor   User?    @relation("Supervision", fields: [supervisorId], references: [id])
+  subordinates User[]   @relation("Supervision")
+
+  // Iniciadora: quién reclutó personalmente a esta persona (U_CodIni de SAP)
+  // Puede ser distinta a la directora de la unidad
+  inciadoraId  String?
+  iniciadora   User?    @relation("Iniciadora", fields: [inciadoraId], references: [id])
+  reclutas     User[]   @relation("Iniciadora")
+
+  sales        Sale[]
+  targets      Target[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastSapSync  DateTime?
+
+  @@index([sapUserId])
+  @@index([supervisorId])
+  @@index([inciadoraId])
+  @@map("users")
+}
+
+model Sale {
+  id         String   @id @default(cuid())
+  sapOrderId String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [sapUserId])
+  amount     Decimal  @db.Decimal(18, 2)
+  currency   String   @default("DOP")
+  saleDate   DateTime
+  status     String   @default("completed")
+  sapDocNum  Int?
+  sapDocEntry String
+  syncedAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([saleDate])
+  @@map("sales")
+}
+
+model Target {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [sapUserId])
+  month        Int
+  year         Int
+  targetAmount Decimal  @db.Decimal(18, 2)
+  currency     String   @default("DOP")
+  sapReference String?
+  syncedAt     DateTime @default(now())
+
+  @@unique([userId, month, year])
+  @@index([userId])
+  @@map("targets")
+}
+
+model SyncLog {
+  id               String    @id @default(cuid())
+  syncType         String
+  status           String
+  recordsProcessed Int       @default(0)
+  errorMessage     String?
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+
+  @@index([syncType])
+  @@index([startedAt])
+  @@map("sync_logs")
+}

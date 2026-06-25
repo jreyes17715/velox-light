@@ -1,0 +1,37 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { LoginPage } from './components/Auth/LoginPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { SalesPage } from './pages/SalesPage';
+import { ConsultorasPage } from './pages/ConsultorasPage';
+import { MetasPage } from './pages/MetasPage';
+import { AdminPage } from './pages/AdminPage';
+import ComisionesPage from './pages/ComisionesPage';
+import SuperAdminPage from './pages/SuperAdminPage';
+import { useAuthStore } from './store/authStore';
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { token } = useAuthStore();
+  if (!token) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/sales" element={<ProtectedRoute><SalesPage /></ProtectedRoute>} />
+        <Route path="/consultoras" element={<ProtectedRoute><ConsultorasPage /></ProtectedRoute>} />
+        <Route path="/metas" element={<ProtectedRoute><MetasPage /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+        <Route path="/comisiones" element={<ProtectedRoute><ComisionesPage /></ProtectedRoute>} />
+        <Route path="/superadmin" element={<ProtectedRoute><SuperAdminPage /></ProtectedRoute>} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
