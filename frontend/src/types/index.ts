@@ -3,7 +3,7 @@ export interface User {
   sapUserId: string;
   name: string;
   email: string | null;
-  role: 'directora' | 'consultora';
+  role: 'directora' | 'consultora' | 'diq' | 'iniciadora';
   unitName: string | null;
   isSuperAdmin: boolean;
   supervisorId: string | null;
@@ -13,6 +13,8 @@ export interface User {
 export interface OverviewData {
   user: { name: string; role: string; unitName?: string | null };
   totalSales: number;
+  todaySales: number;
+  todayCount: number;
   targetAmount: number;
   achievementPercent: number;
   salesCount: number;

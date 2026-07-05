@@ -53,7 +53,7 @@ export function AdminPage() {
     }
   };
 
-  const handleSync = async (type: 'full' | 'users' | 'sales') => {
+  const handleSync = async (type: 'full' | 'users' | 'sales' | 'credit-notes') => {
     setSyncing(true);
     setSyncMessage(null);
     setError(null);
@@ -134,6 +134,13 @@ export function AdminPage() {
                 className="border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm disabled:opacity-50 transition-colors"
               >
                 💰 Solo Ventas
+              </button>
+              <button
+                onClick={() => handleSync('credit-notes')}
+                disabled={syncing}
+                className="border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm disabled:opacity-50 transition-colors"
+              >
+                <i className="fa-solid fa-file-circle-minus mr-1.5 text-red-500" />Notas de Credito
               </button>
             </div>
 

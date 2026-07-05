@@ -103,7 +103,7 @@ export function ConsultorasPage() {
               <p className="text-xs text-pink-600 font-medium uppercase tracking-wide">Producción total del grupo</p>
               <p className="text-2xl font-bold text-pink-700 mt-0.5">{formatCurrency(totalVentas)}</p>
             </div>
-            <span className="text-4xl">💄</span>
+            <i className="fa-solid fa-chart-simple fa-2x text-pink-300" aria-hidden="true" />
           </div>
 
           {/* Filtro y tabla */}
@@ -197,6 +197,8 @@ export function ConsultorasPage() {
           userId={selectedUserId}
           isOpen={!!selectedUserId}
           onClose={() => setSelectedUserId(null)}
+          month={month}
+          year={year}
         />
       )}
     </Layout>
