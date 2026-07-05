@@ -5,6 +5,8 @@ import {
   fetchBusinessPartnerGroups,
   fetchOrdersSince,
   fetchAllOrders,
+  fetchCreditNotesSince,
+  fetchAllCreditNotes,
 } from './sapService';
 
 // ─── Sync de usuarios (BusinessPartners + jerarquía automática) ──────────────
@@ -23,9 +25,12 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
     // 1. Traer grupos: mapa GroupCode → { directoraCardCode, groupName }
     const groups = await fetchBusinessPartnerGroups();
     const groupMap = new Map<number, { directoraCardCode: string; groupName: string }>();
+    // Mapa inverso: CardCode de directora -> nombre de su unidad
+    const directoraUnitMap = new Map<string, string>();
     for (const g of groups) {
       if (g.U_CardCode) {
         groupMap.set(g.Code, { directoraCardCode: g.U_CardCode, groupName: g.Name });
+        directoraUnitMap.set(g.U_CardCode, g.Name);
       }
     }
     logger.info(`SYNC: ${groups.length} grupos, ${groupMap.size} con directora asignada`);
@@ -45,6 +50,9 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
 
       const existing = await prisma.user.findUnique({ where: { sapUserId: bp.CardCode } });
 
+      // Si es directora y tiene unidad en SAP, poblar unitName automaticamente
+      const sapUnitName = isDirectora ? directoraUnitMap.get(bp.CardCode) : undefined;
+
       if (existing) {
         await prisma.user.update({
           where: { sapUserId: bp.CardCode },
@@ -52,6 +60,8 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
             name: bp.CardName,
             email: bp.EmailAddress || existing.email,
             role,
+            // Solo sobreescribir unitName si SAP lo trae y el usuario no lo personalizó
+            ...(sapUnitName && !existing.unitName ? { unitName: sapUnitName } : {}),
             lastSapSync: new Date(),
           },
         });
@@ -63,6 +73,7 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
             name: bp.CardName,
             email: bp.EmailAddress || null,
             role,
+            unitName: sapUnitName ?? null,
             lastSapSync: new Date(),
           },
         });
@@ -211,15 +222,76 @@ export async function syncSales(fullSync = false): Promise<{ upserted: number; s
       where: { id: log.id },
       data: { status: 'error', errorMessage: msg, completedAt: new Date() },
     });
-    logger.error('SYNC ventas error:', msg);
     throw error;
   }
 }
 
-// ─── Sync completo ────────────────────────────────────────────────────────────
-export async function fullSync(): Promise<void> {
-  logger.info('SYNC: iniciando sync completo...');
-  await syncUsers();
-  await syncSales(true);
-  logger.info('SYNC: sync completo finalizado');
+// ─── Sync de notas de credito (CreditNotes) ───────────────────────────────────
+export async function syncCreditNotes(fullSync = false): Promise<{ upserted: number; skipped: number }> {
+  logger.info(`SYNC: iniciando sync de notas de crédito (${fullSync ? 'completo' : 'incremental'})...`);
+  const log = await prisma.syncLog.create({
+    data: { syncType: 'credit_notes', status: 'running' },
+  });
+
+  let upserted = 0;
+  let skipped  = 0;
+
+  try {
+    const notes = fullSync
+      ? await fetchAllCreditNotes()
+      : await fetchCreditNotesSince(new Date(Date.now() - 20 * 60 * 1000));
+
+    for (const note of notes) {
+      const user = await prisma.user.findUnique({
+        where: { sapUserId: note.CardCode },
+        select: { sapUserId: true },
+      });
+
+      if (!user) { skipped++; continue; }
+
+      const cancelled = note.Cancelled === 'tYES';
+
+      await prisma.creditNote.upsert({
+        where: { sapDocEntry: String(note.DocEntry) },
+        create: {
+          sapDocEntry: String(note.DocEntry),
+          sapDocNum:   note.DocNum,
+          userId:      note.CardCode,
+          amount:      note.DocTotal,
+          currency:    'DOP',
+          docDate:     new Date(note.DocDate),
+          comments:    note.Comments ?? null,
+          ncfRef:      note.U_NCF    ?? null,
+          ncfNC:       note.U_NCF_NC ?? null,
+          cancelled,
+          syncedAt:    new Date(),
+        },
+        update: {
+          amount:    note.DocTotal,
+          cancelled,
+          comments:  note.Comments ?? null,
+          ncfRef:    note.U_NCF    ?? null,
+          ncfNC:     note.U_NCF_NC ?? null,
+          syncedAt:  new Date(),
+        },
+      });
+
+      upserted++;
+    }
+
+    await prisma.syncLog.update({
+      where: { id: log.id },
+      data: { status: 'success', recordsProcessed: upserted, completedAt: new Date() },
+    });
+
+    logger.info(`SYNC notas de crédito: ${upserted} procesadas, ${skipped} saltadas`);
+    return { upserted, skipped };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    await prisma.syncLog.update({
+      where: { id: log.id },
+      data: { status: 'error', errorMessage: msg, completedAt: new Date() },
+    });
+    throw error;
+  }
 }

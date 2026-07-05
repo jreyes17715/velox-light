@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { fullSync, syncUsers, syncSales } from '../services/syncService';
+import { fullSync, syncUsers, syncSales, syncCreditNotes } from '../services/syncService';
 import { prisma } from '../utils/prisma';
 import { logger } from '../utils/logger';
 import axios from 'axios';
@@ -132,6 +132,18 @@ router.patch('/users/:id/supervisor', async (req: Request, res: Response) => {
     res.json({ ok: true, supervisorId: updated.supervisorId });
   } catch (error) {
     res.status(500).json({ error: 'Error actualizando supervisora' });
+  }
+});
+
+
+// POST /api/admin/sync/credit-notes — sync notas de crédito manual
+router.post('/sync/credit-notes', async (_req: Request, res: Response) => {
+  try {
+    const result = await syncCreditNotes(true);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: msg });
   }
 });
 

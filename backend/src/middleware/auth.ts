@@ -25,7 +25,7 @@ export async function authenticateJWT(req: AuthRequest, res: Response, next: Nex
       return;
     }
 
-    // Extraer sapUserId del payload (soporta múltiples formatos)
+    // Extraer sapUserId del payload (soporta multiples formatos)
     const sapUserId = decoded.sapUserId || decoded.userId || String(decoded.data?.user?.id || '');
 
     if (!sapUserId) {
@@ -45,8 +45,17 @@ export async function authenticateJWT(req: AuthRequest, res: Response, next: Nex
       return;
     }
 
-    req.user = user;
-    logger.debug(`Authenticated user: ${user.name} (${user.role})`);
+    // Para iniciadora: su grupo son sus reclutas (inciadoraId), no supervisorId
+    if (user.role === 'iniciadora') {
+      const reclutas = await prisma.user.findMany({
+        where: { inciadoraId: user.id },
+        orderBy: { name: 'asc' },
+      });
+      (user as any).subordinates = reclutas;
+    }
+
+    req.user = user as typeof user & { subordinates: (typeof user)[] };
+    logger.debug(`Authenticated user: ${user.name} (${user.role}) - grupo: ${(user as any).subordinates.length}`);
     next();
   } catch (error) {
     logger.error('Auth middleware error:', error);

@@ -120,3 +120,49 @@ export async function fetchAllOrders(): Promise<SapOrder[]> {
   since.setMonth(since.getMonth() - 6);
   return fetchOrdersSince(since);
 }
+
+// ─── CreditNotes ──────────────────────────────────────────────────────────────
+
+export interface SapCreditNote {
+  DocEntry: number;
+  DocNum:   number;
+  CardCode: string;
+  DocDate:  string;
+  DocTotal: number;
+  Cancelled: string;  // 'tYES' | 'tNO'
+  Comments?: string | null;
+  U_NCF?:    string | null;  // factura original afectada
+  U_NCF_NC?: string | null;  // NCF de esta nota de crédito
+}
+
+export async function fetchCreditNotesSince(sinceDate: Date): Promise<SapCreditNote[]> {
+  const all: SapCreditNote[] = [];
+  let skip = 0;
+  const dateStr = sinceDate.toISOString().slice(0, 10);
+
+  while (true) {
+    logger.debug(`SAP: CreditNotes skip=${skip} desde=${dateStr}`);
+    const data = await sapGet<SapListResponse<SapCreditNote>>('/CreditNotes', {
+      $select: 'DocEntry,DocNum,CardCode,DocDate,DocTotal,Cancelled,Comments,U_NCF,U_NCF_NC',
+      $filter: `DocDate ge '${dateStr}'`,
+      $orderby: 'DocDate asc',
+      $top: String(PAGE_SIZE),
+      $skip: String(skip),
+    });
+
+    const items = data.value || [];
+    all.push(...items);
+
+    if (items.length < PAGE_SIZE) break;
+    skip += PAGE_SIZE;
+  }
+
+  logger.info(`SAP: ${all.length} notas de crédito obtenidas desde ${dateStr}`);
+  return all;
+}
+
+export async function fetchAllCreditNotes(): Promise<SapCreditNote[]> {
+  const since = new Date();
+  since.setMonth(since.getMonth() - 6);
+  return fetchCreditNotesSince(since);
+}

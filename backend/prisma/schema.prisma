@@ -14,7 +14,8 @@ model User {
   email        String?  @unique
   role         String   // "directora" | "consultora"
   unitName     String?  // Nombre de la unidad (solo directoras)
-  isSuperAdmin Boolean  @default(false)
+  isSuperAdmin  Boolean  @default(false)
+  localPassword String?  // Hash bcrypt — solo para usuarios del sistema (no SAP)
 
   // Jerarquía directora → consultoras / directora → directora madre
   supervisorId String?
@@ -29,14 +30,56 @@ model User {
 
   sales        Sale[]
   targets      Target[]
+  creditNotes  CreditNote[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   lastSapSync  DateTime?
+
+  // DIQ relations
+  diqAsCandidate DIQ?    @relation("DIQCandidate")
+  diqsRegistered DIQ[]   @relation("DIQRegisteredBy")
 
   @@index([sapUserId])
   @@index([supervisorId])
   @@index([inciadoraId])
   @@map("users")
+}
+
+// Candidata a Directora en Calificación (DIQ)
+model DIQ {
+  id             String    @id @default(cuid())
+
+  // La consultora/iniciadora que está calificando
+  userId         String    @unique
+  user           User      @relation("DIQCandidate", fields: [userId], references: [id])
+
+  // Quién la registró (directora o superadmin)
+  registeredById String
+  registeredBy   User      @relation("DIQRegisteredBy", fields: [registeredById], references: [id])
+
+  // Período de calificación (3 meses desde startDate)
+  startDate      DateTime
+  endDate        DateTime  // startDate + 3 meses
+
+  // Estado
+  status         String    @default("active") // "active" | "completed" | "failed"
+  completedAt    DateTime?
+
+  // Metas fijas
+  targetConsultoras  Int     @default(24)
+  targetProduccion   Decimal @default(300000) @db.Decimal(18, 2)
+  targetIniciaciones Int     @default(8)
+
+  // Notas opcionales
+  notes          String?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([registeredById])
+  @@index([status])
+  @@map("diqs")
 }
 
 model Sale {
@@ -71,6 +114,29 @@ model Target {
   @@unique([userId, month, year])
   @@index([userId])
   @@map("targets")
+}
+
+
+// Nota de credito (sincronizada de SAP)
+model CreditNote {
+  id          String   @id @default(cuid())
+  sapDocEntry String   @unique  // DocEntry de SAP
+  sapDocNum   Int
+  userId      String               // CardCode -> mapea a User.sapUserId
+  user        User     @relation(fields: [userId], references: [sapUserId])
+
+  amount      Decimal  @db.Decimal(18, 2)  // DocTotal bruto
+  currency    String   @default("DOP")
+  docDate     DateTime
+  comments    String?
+  ncfRef      String?  // U_NCF (factura afectada)
+  ncfNC       String?  // U_NCF_NC (NCF de esta NC)
+  cancelled   Boolean  @default(false)
+  syncedAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([docDate])
+  @@map("credit_notes")
 }
 
 model SyncLog {

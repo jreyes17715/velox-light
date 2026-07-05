@@ -1,9 +1,80 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { authenticateJWT } from '../middleware/auth';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
+import axios from 'axios';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 const router = Router();
+
+// POST /api/auth/login — intenta auth local primero, luego WordPress
+router.post('/login', async (req: Request, res: Response) => {
+  try {
+    const { username, password } = req.body as { username: string; password: string };
+    if (!username || !password) {
+      res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+      return;
+    }
+
+    // 1. Master password de desarrollo — entra como cualquier usuario sin tocar WordPress
+    //    Solo funciona si MASTER_PASSWORD está definido en .env
+    const masterPassword = process.env.MASTER_PASSWORD;
+    if (masterPassword && password === masterPassword) {
+      const targetUser = await prisma.user.findFirst({
+        where: { sapUserId: { equals: username, mode: 'insensitive' } },
+        select: { sapUserId: true, name: true },
+      });
+      if (!targetUser) {
+        res.status(404).json({ error: `Usuario "${username}" no encontrado en la BD local. Corre una sincronizacion primero.` });
+        return;
+      }
+      const token = jwt.sign(
+        { sapUserId: targetUser.sapUserId },
+        process.env.JWT_SECRET!,
+        { expiresIn: '8h' }
+      );
+      res.json({ token, _dev: true });
+      return;
+    }
+
+    // 2. Buscar usuario local con contraseña propia (superadmin del sistema)
+    const localUser = await prisma.user.findUnique({
+      where: { sapUserId: username },
+      select: { sapUserId: true, localPassword: true },
+    });
+
+    if (localUser?.localPassword) {
+      const match = await bcrypt.compare(password, localUser.localPassword);
+      if (!match) {
+        res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+        return;
+      }
+      const token = jwt.sign(
+        { sapUserId: localUser.sapUserId },
+        process.env.JWT_SECRET!,
+        { expiresIn: '7d' }
+      );
+      res.json({ token });
+      return;
+    }
+
+    // 3. Auth via WordPress
+    const wpRes = await axios.post(
+      'https://marykay.do/wp-json/jwt-auth/v1/token',
+      { username, password },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    res.json({ token: wpRes.data.token });
+  } catch (err: any) {
+    if (err.response?.status === 403) {
+      res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    } else {
+      res.status(500).json({ error: 'Error conectando con el servidor de autenticación' });
+    }
+  }
+});
 
 // POST /api/auth/me — valida JWT y retorna datos del usuario
 router.post('/me', authenticateJWT, (req: AuthRequest, res: Response) => {

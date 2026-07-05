@@ -8,6 +8,8 @@ import salesRoutes from './routes/sales';
 import adminRoutes from './routes/admin';
 import commissionRoutes from './routes/commissions';
 import superadminRoutes from './routes/superadmin';
+import profileRoutes from './routes/profile';
+import diqRoutes from './routes/diq';
 import { startSyncScheduler } from './cron/syncScheduler';
 
 dotenv.config();
@@ -32,6 +34,8 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/commissions', commissionRoutes);
 app.use('/api/superadmin', superadminRoutes);
+app.use('/api/profile', profileRoutes);
+app.use('/api/diq', diqRoutes);
 
 // Error handler
 app.use(errorHandler);
