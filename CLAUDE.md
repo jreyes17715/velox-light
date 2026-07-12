@@ -1,8 +1,8 @@
 # 🎯 CLAUDE.md - Mary Kay Commissions Dashboard
 
-**Estado:** Módulos 1–3 completados  
+**Estado:** Módulos 1–4 completados (Motor comisiones, DIQ, Super Admin, Iniciadoras, Metas con distribución)
 **Proyecto:** Dashboard de comisiones para Mary Kay Republica Dominicana  
-**Fase actual:** MÓDULO 4+ — Motor de comisiones, DIQ, Super Admin  
+**Fase actual:** MÓDULO 5+ — mejoras incrementales, Super Admin MetasPanel, pendientes varios  
 **Timeline:** En progreso  
 **Enfoque:** Modular + iterativo + 100% validado entre módulos
 
@@ -86,12 +86,25 @@ Dashboard donde **Directoras de Mary Kay** ven:
 ✓ Migraciones automáticas
 ```
 
-### **Hosting**
+### **Hosting — SETUP REAL (producción)**
 ```
-✓ SiteGround (mismo servidor Mary Kay DO)
-✓ Node.js via cPanel selector o reverse proxy
-✓ PM2 (process manager, mantener vivo)
-✓ SSL Let's Encrypt (subdominio comisiones.marykay.do)
+BACKEND:
+✓ Railway (PaaS) — https://alert-eagerness-production-8cbb.up.railway.app
+✓ Deploy: Railway CLI → desde backend/ ejecutar: railway up
+✓ NO está conectado a git — deploy manual con CLI
+
+BASE DE DATOS:
+✓ PostgreSQL en Railway (mismo proyecto Railway)
+✓ Variable: ${{Postgres.DATABASE_URL}} — Railway la inyecta automáticamente
+✓ Migraciones: npx prisma migrate deploy (en Railway via railway run)
+
+FRONTEND:
+✓ SiteGround — subdominio comisiones.marykay.do
+✓ Build: cd frontend && npm run build  (genera frontend/dist/)
+✓ Deploy: subir manualmente los archivos de frontend/dist/ por FTP o cPanel File Manager
+✓ Archivos a subir: index.html + assets/index-[hash].js + assets/index-[hash].css
+✓ VITE_API_URL debe apuntar a Railway al hacer build:
+   VITE_API_URL=https://alert-eagerness-production-8cbb.up.railway.app/api npm run build
 ```
 
 ---
@@ -1213,19 +1226,94 @@ El 18% es el ITBIS (IVA dominicano). Todas las comisiones se calculan sobre el m
 
 ---
 
-## 👑 ROL SUPER ADMIN (FUTURO)
+## 👑 ROL SUPER ADMIN (IMPLEMENTADO)
 
-Un usuario con rol `superadmin` que puede:
-- Ver TODAS las directoras y sus unidades en un solo dashboard
-- Ver comisiones totales de todas las unidades
-- Ver el árbol completo de jerarquía (directora → directoras descendientes → consultoras)
-- Gestionar sincronización SAP
-- Acceso a todas las páginas de admin
-- Ver reportes globales (producción por unidad, ranking, etc.)
+`isSuperAdmin: true` en el modelo User (campo booleano en Prisma, ya migrado).
 
-**En el schema Prisma:** Agregar `role: "superadmin"` como valor válido en el campo `role`.  
-**En el frontend:** El super admin verá un selector de directora/unidad para poder navegar a cualquier dashboard.  
-**En el backend:** Los endpoints de dashboard recibirán un parámetro `?asUserId=...` que el superadmin puede usar para ver cualquier directora.
+**Lo que puede hacer:**
+- Ver TODAS las directoras y sus unidades (SuperAdminPage.tsx)
+- Tabs: Overview, Unidades, Iniciadoras, DIQ, Metas, Sync
+- Asignar metas de unidad a cada directora (campo Target de la directora = meta de unidad)
+- Ver árbol de iniciadoras y sus reclutas con producción
+- Gestionar sincronización SAP manual
 
-No está implementado aún — es para un módulo futuro.
+**En el backend:** `req.user.isSuperAdmin` — los endpoints de superadmin están en `backend/src/routes/superadmin.ts`
+
+---
+
+## 🚀 ESTADO ACTUAL DEL PROYECTO (julio 2026)
+
+### **LO QUE ESTÁ IMPLEMENTADO Y FUNCIONANDO**
+
+```
+✅ Auth JWT (WordPress Mary Kay DO → token → dashboard)
+✅ Dashboard overview (ventas personales + grupo, metas, ranking)
+✅ Página Ventas con filtros
+✅ Página Consultoras (tabla subordinadas)
+✅ Página Metas — NUEVO FLUJO:
+   - SuperAdmin asigna meta de unidad (Target de la directora)
+   - Directora ve esa meta y la distribuye entre ella + consultoras
+   - Distribución equitativa (÷ N miembros) o manual
+   - PUT /api/dashboard/metas guarda los targets individuales
+✅ Página Comisiones (Tipo A, B, C calculadas)
+✅ Página Mi Perfil
+✅ SuperAdmin — tabs: Overview, Unidades, Iniciadoras, DIQ, Metas, Sync
+✅ SuperAdmin Iniciadoras — tabla de iniciadoras/DIQ con reclutas y producción
+✅ DIQ — registro y seguimiento de candidatas a directora
+✅ SAP sync (BusinessPartners + Orders + CreditNotes cada 15 min)
+✅ Notas de crédito descontadas de ventas
+✅ isSuperAdmin, inciadoraId, unitName en schema
+```
+
+### **PENDIENTES / PRÓXIMAS TAREAS**
+
+```
+⬜ Task #29: SuperAdmin MetasPanel — aclarar que el campo de la directora = meta de unidad global
+⬜ Confirmar campo U_Status/U_Nivel en SAP para status A1/A2/A3 de consultoras
+⬜ Confirmar umbral exacto 6% vs 8% en comisión Iniciadora (5 activas = 6%, ¿cuántas = 8%?)
+⬜ Confirmar umbrales superiores comisión descendientes (5+ = 4.5%, ¿hay más tiers?)
+```
+
+### **PROBLEMA CONOCIDO — TRUNCACIÓN DE ARCHIVOS**
+
+⚠️ El Write tool de Claude trunca archivos grandes en disco (el archivo queda cortado a ~220 líneas).
+**Solución:** Usar Python via bash para escribir/limpiar archivos:
+```bash
+# Escribir archivo completo
+python3 -c "
+content = '''...'''
+with open('path/to/file.ts', 'w', encoding='ascii', errors='xmlcharrefreplace') as f:
+    f.write(content)
+"
+
+# Limpiar null bytes / contenido duplicado después de export default
+python3 -c "
+with open('file.ts','rb') as f: c=f.read()
+pos = c.rfind(b'export default router;\n')
+with open('file.ts','wb') as f: f.write(c[:pos+len(b'export default router;\n')])
+"
+
+# Verificar truncación
+tail -5 file.ts | cat -v
+wc -l file.ts
+```
+
+### **PROCESO DE DEPLOY**
+
+```
+BACKEND (Railway):
+  cd backend/
+  railway up
+
+FRONTEND (SiteGround):
+  cd frontend/
+  VITE_API_URL=https://alert-eagerness-production-8cbb.up.railway.app/api npm run build
+  # Luego subir frontend/dist/ por FTP/cPanel a comisiones.marykay.do
+  # Archivos: index.html + assets/index-[hash].js + assets/index-[hash].css
+
+MIGRACIONES (si hay cambios en schema.prisma):
+  # Opción A: en local con tunnel a Railway DB
+  railway run npx prisma migrate deploy
+  # Opción B: conectar DB local al .env de Railway y correr migrate deploy
+```
 

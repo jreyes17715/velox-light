@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { useAuthStore } from '../../store/authStore';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../utils/api';
+
+// Endpoint de WordPress (Mary Kay DO) — se llama DIRECTO desde el navegador,
+// no a través de nuestro backend. Esto evita que el Anti-Bot AI de SiteGround
+// bloquee la petición por verse como tráfico server-to-server (bot).
+const WP_JWT_ENDPOINT = 'https://marykay.do/wp-json/jwt-auth/v1/token';
 
 export function LoginPage() {
   const navigate   = useNavigate();
@@ -35,16 +41,57 @@ export function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      // 1. Obtener token via proxy del backend (evita CORS)
-      const { data } = await api.post<{ token: string }>(
+      // 1. Intentar auth local (master password de desarrollo o superadmin con
+      //    contraseña propia) contra nuestro backend.
+      const { data } = await api.post<{ token?: string; requiresWordPress?: boolean }>(
         '/auth/login',
         { username, password }
       );
 
-      const wpToken = data.token;
-      if (!wpToken) throw new Error('No se recibió token');
+      let wpToken = data.token;
 
-      // 2. Validar token en nuestro backend
+      // 2. Si no es un usuario de auth local, autenticar directo contra WordPress
+      //    desde el navegador (en vez de pasar por nuestro backend).
+      if (!wpToken && data.requiresWordPress) {
+        try {
+          const wpRes = await axios.post<{ token?: string }>(
+            WP_JWT_ENDPOINT,
+            { username, password },
+            { headers: { 'Content-Type': 'application/json' } }
+          );
+          wpToken = wpRes.data?.token;
+          if (!wpToken) {
+            setError('Usuario o contraseña incorrectos.');
+            setLoading(false);
+            return;
+          }
+        } catch (wpErr: any) {
+          if (wpErr.response?.data?.message) {
+            const msg = wpErr.response.data.message as string;
+            if (msg.includes('password') || msg.includes('incorrect')) {
+              setError('Contraseña incorrecta.');
+            } else if (msg.includes('username') || msg.includes('user')) {
+              setError('Usuario no encontrado.');
+            } else {
+              setError('Credenciales inválidas.');
+            }
+          } else if (!wpErr.response) {
+            setError('No se pudo conectar con el servidor de autenticación de Mary Kay DO.');
+          } else {
+            setError('Error validando credenciales con Mary Kay DO. Intenta de nuevo.');
+          }
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (!wpToken) {
+        setError('Usuario o contraseña incorrectos.');
+        setLoading(false);
+        return;
+      }
+
+      // 3. Validar token en nuestro backend
       const ok = await validateToken(wpToken);
       if (ok) {
         // Leer el usuario recién seteado para redirigir según rol
@@ -55,20 +102,9 @@ export function LoginPage() {
       }
     } catch (err: any) {
       if (err.response?.data?.error) {
-        // Error del backend propio
         setError(err.response.data.error);
-      } else if (err.response?.data?.message) {
-        // Mensaje de WordPress traducido
-        const msg = err.response.data.message as string;
-        if (msg.includes('password') || msg.includes('incorrect')) {
-          setError('Contrasena incorrecta.');
-        } else if (msg.includes('username') || msg.includes('user')) {
-          setError('Usuario no encontrado.');
-        } else {
-          setError('Credenciales invalidas.');
-        }
       } else if (!err.response) {
-        setError('No se puede conectar al servidor. Verifica que el backend este corriendo en puerto 3000.');
+        setError('No se puede conectar al servidor. Verifica tu conexión e intenta de nuevo.');
       } else {
         setError(`Error ${err.response?.status ?? ''}: Intenta de nuevo.`);
       }

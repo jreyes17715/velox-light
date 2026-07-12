@@ -52,6 +52,14 @@ interface MetaGrupo {
   unidad: string; directoraMeta: number; miembros: MetaMiembro[];
 }
 interface MetasResponse { month: number; year: number; grupos: MetaGrupo[]; }
+interface ReclutaRow { sapUserId: string; name: string; role: string; ventas: number; pedidos: number; activa: boolean; }
+interface IniciadoraRow {
+  id: string; sapUserId: string; name: string; role: string; unidad: string;
+  totalReclutas: number; reclutasActivas: number;
+  produccionBruta: number; produccionNeta: number;
+  reclutas: ReclutaRow[];
+}
+interface IniciadorasResponse { month: number; year: number; iniciadoras: IniciadoraRow[]; }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -780,10 +788,165 @@ function MetasPanel({ month, year }: { month: number; year: number }) {
   );
 }
 
+// ─── IniciadorasPanel ─────────────────────────────────────────────────────────
+
+function IniciadorasPanel({ month, year }: { month: number; year: number }) {
+  const [data, setData]       = useState<IniciadorasResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get<IniciadorasResponse>('/superadmin/iniciadoras', { params: { month, year } });
+      setData(r.data);
+    } finally { setLoading(false); }
+  }, [month, year]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = (id: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  if (loading) return <div className="py-16 text-center text-gray-400"><I icon="fa-solid fa-spinner fa-spin" className="text-3xl" /></div>;
+  if (!data) return null;
+
+  const { iniciadoras } = data;
+
+  // Totales
+  const totalIniciadoras  = iniciadoras.length;
+  const totalConReclutas  = iniciadoras.filter(i => i.totalReclutas > 0).length;
+  const totalReclutas     = iniciadoras.reduce((s, i) => s + i.totalReclutas, 0);
+  const totalActivas      = iniciadoras.reduce((s, i) => s + i.reclutasActivas, 0);
+  const totalProduccion   = iniciadoras.reduce((s, i) => s + i.produccionBruta, 0);
+
+  const roleBadge = (role: string) => {
+    if (role === 'diq')       return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">DIQ</span>;
+    if (role === 'directora') return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-700">Directora</span>;
+    return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">Iniciadora</span>;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* KPI resumen */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: 'Iniciadoras',         value: totalIniciadoras.toString(),   icon: 'fa-solid fa-star',           bg: 'bg-purple-50',  color: 'text-purple-600' },
+          { label: 'Con reclutas',         value: totalConReclutas.toString(),   icon: 'fa-solid fa-users',          bg: 'bg-pink-50',    color: 'text-pink-600'   },
+          { label: 'Total reclutas',       value: totalReclutas.toString(),       icon: 'fa-solid fa-user-plus',     bg: 'bg-blue-50',    color: 'text-blue-600'   },
+          { label: 'Reclutas activas',     value: `${totalActivas} / ${totalReclutas}`, icon: 'fa-solid fa-circle-check', bg: 'bg-green-50', color: 'text-green-600' },
+        ].map(c => (
+          <div key={c.label} className={`${c.bg} rounded-xl p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <I icon={c.icon} className={`${c.color} text-sm`} />
+              <span className="text-xs text-gray-500 font-medium">{c.label}</span>
+            </div>
+            <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-purple-50 rounded-xl p-4 flex items-center justify-between">
+        <span className="text-sm text-purple-700 font-medium">Producción total de reclutas — {MONTHS[month - 1]} {year}</span>
+        <span className="text-xl font-bold text-purple-900">{fmt(totalProduccion)}</span>
+      </div>
+
+      {/* Tabla */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+              <tr>
+                <th className="px-4 py-3 w-8" />
+                <th className="px-4 py-3 text-left">Iniciadora</th>
+                <th className="px-4 py-3 text-left">Rol</th>
+                <th className="px-4 py-3 text-left">Unidad</th>
+                <th className="px-4 py-3 text-right">Reclutas</th>
+                <th className="px-4 py-3 text-right">Activas</th>
+                <th className="px-4 py-3 text-right">Producción reclutas</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {iniciadoras.map(ini => (
+                <>
+                  <tr
+                    key={ini.id}
+                    className={`hover:bg-gray-50 cursor-pointer ${ini.totalReclutas === 0 ? 'opacity-50' : ''}`}
+                    onClick={() => ini.totalReclutas > 0 && toggle(ini.id)}
+                  >
+                    <td className="px-4 py-3 text-gray-400 text-xs">
+                      {ini.totalReclutas > 0 && (
+                        <I icon={expanded.has(ini.id) ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-right'} />
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{ini.name}</td>
+                    <td className="px-4 py-3">{roleBadge(ini.role)}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{ini.unidad}</td>
+                    <td className="px-4 py-3 text-right text-gray-700">{ini.totalReclutas}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={ini.reclutasActivas > 0 ? 'text-green-700 font-semibold' : 'text-gray-400'}>
+                        {ini.reclutasActivas}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-800">
+                      {ini.produccionBruta > 0 ? fmt(ini.produccionBruta) : <span className="text-gray-300">—</span>}
+                    </td>
+                  </tr>
+
+                  {expanded.has(ini.id) && (
+                    <tr key={`${ini.id}-detail`}>
+                      <td colSpan={7} className="p-0">
+                        <div className="bg-purple-50 border-t border-b border-purple-100 px-6 py-3">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-gray-500 uppercase">
+                                <th className="py-1 text-left pr-4">Recluta</th>
+                                <th className="py-1 text-left pr-4">Rol</th>
+                                <th className="py-1 text-right pr-4">Pedidos</th>
+                                <th className="py-1 text-right">Producción</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-purple-100">
+                              {ini.reclutas.map(r => (
+                                <tr key={r.sapUserId} className={r.activa ? '' : 'opacity-50'}>
+                                  <td className="py-1.5 pr-4 font-medium text-gray-800 flex items-center gap-1.5">
+                                    {r.activa
+                                      ? <I icon="fa-solid fa-circle-check" className="text-green-500 text-[10px]" />
+                                      : <I icon="fa-regular fa-circle" className="text-gray-300 text-[10px]" />}
+                                    {r.name}
+                                  </td>
+                                  <td className="py-1.5 pr-4 text-gray-500">{r.role}</td>
+                                  <td className="py-1.5 pr-4 text-right text-gray-600">{r.pedidos > 0 ? r.pedidos : '—'}</td>
+                                  <td className="py-1.5 text-right font-semibold text-gray-800">
+                                    {r.ventas > 0 ? fmt(r.ventas) : <span className="text-gray-300">—</span>}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Pagina principal ─────────────────────────────────────────────────────────
 
-type SuperAdminTab = 'ranking' | 'directoras' | 'metas' | 'persona' | 'unidad';
-const VALID_TABS: SuperAdminTab[] = ['ranking', 'directoras', 'metas', 'persona', 'unidad'];
+type SuperAdminTab = 'ranking' | 'directoras' | 'metas' | 'persona' | 'unidad' | 'iniciadoras';
+const VALID_TABS: SuperAdminTab[] = ['ranking', 'directoras', 'metas', 'persona', 'unidad', 'iniciadoras'];
 function parseTab(raw: string | null): SuperAdminTab {
   return VALID_TABS.includes(raw as SuperAdminTab) ? (raw as SuperAdminTab) : 'ranking';
 }
@@ -822,11 +985,12 @@ export default function SuperAdminPage() {
   const years = Array.from({ length: 4 }, (_, i) => now.getFullYear() - i);
 
   const TABS: { key: typeof tab; icon: string; label: string }[] = [
-    { key: 'ranking',    icon: 'fa-solid fa-trophy',           label: 'Ranking Unidades' },
-    { key: 'directoras', icon: 'fa-solid fa-id-card',          label: 'Directoras'       },
-    { key: 'metas',      icon: 'fa-solid fa-bullseye',         label: 'Metas'            },
-    { key: 'persona',    icon: 'fa-solid fa-magnifying-glass', label: 'Buscar Persona'   },
-    { key: 'unidad',     icon: 'fa-solid fa-building',         label: 'Ver Unidad'       },
+    { key: 'ranking',     icon: 'fa-solid fa-trophy',           label: 'Ranking Unidades' },
+    { key: 'directoras',  icon: 'fa-solid fa-id-card',          label: 'Directoras'       },
+    { key: 'metas',       icon: 'fa-solid fa-bullseye',         label: 'Metas'            },
+    { key: 'iniciadoras', icon: 'fa-solid fa-star',             label: 'Iniciadoras'      },
+    { key: 'persona',     icon: 'fa-solid fa-magnifying-glass', label: 'Buscar Persona'   },
+    { key: 'unidad',      icon: 'fa-solid fa-building',         label: 'Ver Unidad'       },
   ];
 
   const r = data?.resumen;
@@ -973,10 +1137,11 @@ export default function SuperAdminPage() {
           </div>
         )}
 
-        {tab === 'metas'      && <MetasPanel month={month} year={year} />}
+        {tab === 'metas'        && <MetasPanel month={month} year={year} />}
         {!loading && data && tab === 'directoras' && <DirectorasPanel unidades={data.unidades} month={month} year={year} />}
-        {tab === 'persona'    && <BuscarPersona month={month} year={year} />}
-        {tab === 'unidad'     && data && <VerUnidad month={month} year={year} unidades={data.unidades} />}
+        {tab === 'iniciadoras'  && <IniciadorasPanel month={month} year={year} />}
+        {tab === 'persona'      && <BuscarPersona month={month} year={year} />}
+        {tab === 'unidad'       && data && <VerUnidad month={month} year={year} unidades={data.unidades} />}
 
       </div>
     </Layout>

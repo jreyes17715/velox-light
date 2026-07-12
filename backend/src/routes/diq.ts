@@ -199,7 +199,7 @@ router.patch('/:id/members', authenticateJWT, async (req: AuthRequest, res: Resp
     }
 
     const diq = await prisma.dIQ.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       select: { id: true, userId: true, status: true },
     });
     if (!diq) { res.status(404).json({ error: 'DIQ no encontrada' }); return; }
@@ -287,7 +287,7 @@ router.get('/:id', authenticateJWT, async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
     const diq  = await prisma.dIQ.findUnique({
-      where:   { id: req.params.id },
+      where:   { id: req.params.id as string },
       include: {
         user:         { select: { name: true, sapUserId: true } },
         registeredBy: { select: { name: true, unitName: true } },
@@ -317,11 +317,11 @@ router.patch('/:id/complete', authenticateJWT, async (req: AuthRequest, res: Res
       return;
     }
 
-    const diq = await prisma.dIQ.findUnique({ where: { id: req.params.id } });
+    const diq = await prisma.dIQ.findUnique({ where: { id: req.params.id as string } });
     if (!diq) { res.status(404).json({ error: 'DIQ no encontrada' }); return; }
 
     const updated = await prisma.dIQ.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { status: 'completed', completedAt: new Date() },
     });
 

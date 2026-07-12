@@ -111,7 +111,7 @@ router.get('/users', async (_req: Request, res: Response) => {
 
 // PATCH /api/admin/users/:id/supervisor — asignar directora a consultora
 router.patch('/users/:id/supervisor', async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { supervisorId } = req.body as { supervisorId: string | null };
 
   try {

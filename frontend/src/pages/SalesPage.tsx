@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react';
-import * as XLSX from 'xlsx';
 import { Layout } from '../components/Layout/Layout';
 import { LoadingSpinner } from '../components/Common/LoadingSpinner';
 import { ErrorAlert } from '../components/Common/ErrorAlert';
@@ -67,49 +66,6 @@ function SuperAdminSalesView() {
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
-  // ─── Export a Excel ───────────────────────────────────────────────────────
-
-  const exportPersona = () => {
-    if (!data) return;
-    const rows = data.porPersona.map((r, i) => ({
-      '#':            i + 1,
-      'Código SAP':   r.sapUserId,
-      'Nombre':       r.nombre,
-      'Rol':          r.rol,
-      'Unidad':       r.unidad,
-      'Directora':    r.directora,
-      'Venta Bruta':  r.totalBruta,
-      'Venta Neta':   parseFloat(r.totalNeta.toFixed(2)),
-      'Pedidos':      r.pedidos,
-      'Promedio/Pedido': parseFloat(r.promedio.toFixed(2)),
-    }));
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{ wch: 4 },{ wch: 12 },{ wch: 28 },{ wch: 12 },{ wch: 22 },{ wch: 22 },{ wch: 16 },{ wch: 14 },{ wch: 9 },{ wch: 16 }];
-    XLSX.utils.book_append_sheet(wb, ws, 'Por Persona');
-    XLSX.writeFile(wb, `ventas_por_persona_${startDate}_${endDate}.xlsx`);
-  };
-
-  const exportUnidad = () => {
-    if (!data) return;
-    const rows = data.porUnidad.map((r, i) => ({
-      '#':            i + 1,
-      'Unidad':       r.unidad,
-      'Directora':    r.directora,
-      'Miembros':     r.miembros,
-      'Venta Bruta':  r.totalBruta,
-      'Venta Neta':   parseFloat(r.totalNeta.toFixed(2)),
-      'Pedidos':      r.pedidos,
-      'Tasa Comisión': `${(r.rate * 100).toFixed(0)}%`,
-      'Comisión Est.': parseFloat(r.comision.toFixed(2)),
-    }));
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{ wch: 4 },{ wch: 22 },{ wch: 22 },{ wch: 9 },{ wch: 16 },{ wch: 14 },{ wch: 9 },{ wch: 14 },{ wch: 16 }];
-    XLSX.utils.book_append_sheet(wb, ws, 'Por Unidad');
-    XLSX.writeFile(wb, `ventas_por_unidad_${startDate}_${endDate}.xlsx`);
-  };
-
   const totalBruta = data?.porPersona.reduce((s, r) => s + r.totalBruta, 0) ?? 0;
   const totalPedidos = data?.porPersona.reduce((s, r) => s + r.pedidos, 0) ?? 0;
 
@@ -171,7 +127,7 @@ function SuperAdminSalesView() {
             )}
           </div>
 
-          {/* Tabs + Export */}
+          {/* Tabs */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
               {([['persona', '👤 Por Persona'], ['unidad', '🏢 Por Unidad']] as const).map(([key, label]) => (
@@ -181,13 +137,6 @@ function SuperAdminSalesView() {
                 </button>
               ))}
             </div>
-            <button
-              onClick={tab === 'persona' ? exportPersona : exportUnidad}
-              disabled={!data || loading}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
-            >
-              <span>📥</span> Exportar a Excel
-            </button>
           </div>
 
           {/* Tabla Por Persona */}

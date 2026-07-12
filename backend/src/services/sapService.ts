@@ -9,6 +9,7 @@ export interface SapBusinessPartner {
   U_Tipo?: string | null;   // 'D' = Directora, null/vacío = Consultora
   U_CodIni?: string | null; // CardCode de quien reclutó a esta persona (Iniciadora)
   U_NomIni?: string | null; // Nombre de la iniciadora o unidad
+  U_DIQ?: string | null;    // 'S' = está en proceso DIQ
 }
 
 export interface SapBusinessPartnerGroup {
@@ -43,7 +44,7 @@ export async function fetchAllBusinessPartners(): Promise<SapBusinessPartner[]> 
   while (true) {
     logger.debug(`SAP: BusinessPartners skip=${skip}`);
     const data = await sapGet<SapListResponse<SapBusinessPartner>>('/BusinessPartners', {
-      $select: 'CardCode,CardName,EmailAddress,GroupCode,U_Tipo,U_CodIni,U_NomIni',
+      $select: 'CardCode,CardName,EmailAddress,GroupCode,U_Tipo,U_CodIni,U_NomIni,U_DIQ',
       $filter: "CardType eq 'cCustomer'",
       $top: String(PAGE_SIZE),
       $skip: String(skip),

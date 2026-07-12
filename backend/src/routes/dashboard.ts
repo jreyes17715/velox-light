@@ -215,4 +215,94 @@ router.get('/subordinates', authenticateJWT, async (req: AuthRequest, res: Respo
   }
 });
 
+// GET /api/dashboard/m// GET /api/dashboard/metas
+// La Target de la directora = meta de unidad (asignada por superadmin)
+router.get('/metas', authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const user  = req.user!;
+    const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+    const year  = parseInt(req.query.year  as string) || new Date().getFullYear();
+
+    const unitTargetRow = await prisma.target.findUnique({
+      where: { userId_month_year: { userId: user.sapUserId, month, year } },
+    });
+    const unitGoal = Number(unitTargetRow?.targetAmount ?? 0);
+
+    const subordinates = user.subordinates ?? [];
+    const allMembers = [
+      { id: user.id, sapUserId: user.sapUserId, name: user.name, role: user.role, isDirectora: true },
+      ...subordinates.map(s => ({ id: s.id, sapUserId: s.sapUserId, name: s.name, role: 'consultora', isDirectora: false })),
+    ];
+
+    const allIds = allMembers.map(m => m.sapUserId);
+    const existingTargets = await prisma.target.findMany({
+      where: { userId: { in: allIds }, month, year },
+    });
+    const targetMap = new Map(existingTargets.map(t => [t.userId, Number(t.targetAmount)]));
+
+    const members = allMembers.map(m => ({
+      id:            m.id,
+      sapUserId:     m.sapUserId,
+      name:          m.name,
+      role:          m.role,
+      isDirectora:   m.isDirectora,
+      currentTarget: targetMap.get(m.sapUserId) ?? 0,
+    }));
+
+    const totalDistributed = members.reduce((s, m) => s + m.currentTarget, 0);
+
+    res.json({ month, year, unitGoal, totalDistributed, members });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error cargando metas' });
+  }
+});
+
+// PUT /api/dashboard/metas — directora guarda distribucion
+router.put('/metas', authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    if (user.role !== 'directora' && user.role !== 'diq' && !user.isSuperAdmin) {
+      res.status(403).json({ error: 'Solo directoras pueden distribuir metas' });
+      return;
+    }
+
+    const { month, year, targets } = req.body as {
+      month:   number;
+      year:    number;
+      targets: { sapUserId: string; amount: number }[];
+    };
+
+    if (!month || !year || !Array.isArray(targets)) {
+      res.status(400).json({ error: 'month, year y targets son requeridos' });
+      return;
+    }
+
+    const allowedIds = new Set([
+      user.sapUserId,
+      ...(user.subordinates ?? []).map(s => s.sapUserId),
+    ]);
+
+    const forbidden = targets.find(t => !allowedIds.has(t.sapUserId));
+    if (forbidden) {
+      res.status(403).json({ error: 'No tienes permiso sobre ese usuario' });
+      return;
+    }
+
+    const ops = targets.map(t =>
+      prisma.target.upsert({
+        where:  { userId_month_year: { userId: t.sapUserId, month, year } },
+        create: { userId: t.sapUserId, month, year, targetAmount: t.amount, currency: 'DOP' },
+        update: { targetAmount: t.amount },
+      })
+    );
+
+    await prisma.$transaction(ops);
+    res.json({ ok: true, updated: targets.length });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error guardando metas' });
+  }
+});
+
 export default router;

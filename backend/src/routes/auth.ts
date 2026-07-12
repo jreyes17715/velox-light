@@ -2,13 +2,15 @@ import { Router, Request, Response } from 'express';
 import { authenticateJWT } from '../middleware/auth';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
-import axios from 'axios';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
 const router = Router();
 
-// POST /api/auth/login — intenta auth local primero, luego WordPress
+// POST /api/auth/login — intenta auth local (master password o superadmin con contraseña propia).
+// Si el usuario no tiene auth local, responde { requiresWordPress: true } y el FRONTEND
+// llama directo a WordPress desde el navegador (evita que el Anti-Bot AI de SiteGround
+// bloquee la llamada por ser tráfico server-to-server sin cookies).
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body as { username: string; password: string };
@@ -59,20 +61,11 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
 
-    // 3. Auth via WordPress
-    const wpRes = await axios.post(
-      'https://marykay.do/wp-json/jwt-auth/v1/token',
-      { username, password },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-
-    res.json({ token: wpRes.data.token });
+    // 3. No es auth local -> el frontend debe autenticar directo contra WordPress
+    res.json({ requiresWordPress: true });
   } catch (err: any) {
-    if (err.response?.status === 403) {
-      res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-    } else {
-      res.status(500).json({ error: 'Error conectando con el servidor de autenticación' });
-    }
+    console.error('[auth/login] Error en auth local. message=%s', err.message);
+    res.status(500).json({ error: 'Error interno de autenticación' });
   }
 });
 

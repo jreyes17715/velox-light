@@ -9,7 +9,6 @@ const ALL_NAV_ITEMS: { to: string; label: string; icon: string; roles: string[] 
   { to: '/consultoras',      label: 'Consultoras',          icon: 'group',   roles: ['directora', 'diq', 'iniciadora'] },
   { to: '/metas',            label: 'Metas',                icon: 'target',  roles: ['directora', 'diq', 'iniciadora'] },
   { to: '/superadmin/metas', label: 'Metas',                icon: 'target',  roles: ['superadmin'] },
-  { to: '/diq',              label: 'Candidatas DIQ',       icon: 'star',    roles: ['directora', 'superadmin'] },
   { to: '/perfil',           label: 'Mi Perfil',            icon: 'user',    roles: ['directora', 'consultora', 'diq', 'iniciadora'] },
   { to: '/admin',            label: 'Administracion',       icon: 'settings',roles: ['superadmin'] },
 ];
@@ -169,7 +168,7 @@ export function Sidebar() {
           </div>
           <div>
             <p className={`${theme.userText} font-bold text-sm leading-tight`}>MARY KAY</p>
-            <p className={`${theme.userSubtext} text-xs`}>Comisiones RD</p>
+            <p className={`${theme.userSubtext} text-xs`}>Producción</p>
           </div>
         </div>
       </div>

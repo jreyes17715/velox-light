@@ -23,7 +23,6 @@ function requireSuperAdmin(req: AuthRequest, res: Response): boolean {
 }
 
 // GET /api/superadmin/overview?month=5&year=2026
-// Dashboard consolidado: todas las unidades con producción del mes
 router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response) => {
   try {
     if (!requireSuperAdmin(req, res)) return;
@@ -35,14 +34,12 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
     const gte = new Date(year, month - 1, 1);
     const lt  = new Date(year, month, 1);
 
-    // Todas las directoras
     const directoras = await prisma.user.findMany({
       where: { role: 'directora' },
       select: { id: true, sapUserId: true, name: true, unitName: true },
       orderBy: { name: 'asc' },
     });
 
-    // Para cada directora calcular producción de su unidad
     const unidades = await Promise.all(directoras.map(async (dir) => {
       const miembros = await prisma.user.findMany({
         where: { supervisorId: dir.id },
@@ -51,11 +48,7 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
       const sapIds = [dir.sapUserId, ...miembros.map(m => m.sapUserId)];
 
       const result = await prisma.sale.aggregate({
-        where: {
-          userId: { in: sapIds },
-          saleDate: { gte, lt },
-          status: { not: 'cancelled' },
-        },
+        where: { userId: { in: sapIds }, saleDate: { gte, lt }, status: { not: 'cancelled' } },
         _sum: { amount: true },
         _count: { id: true },
       });
@@ -70,20 +63,19 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
       const comision    = compraNeta * rate;
 
       return {
-        directoraId:   dir.id,
-        sapUserId:     dir.sapUserId,
-        nombre:        dir.name,
-        unidad:        dir.unitName ?? dir.name,
-        miembros:      sapIds.length,
+        directoraId: dir.id,
+        sapUserId:   dir.sapUserId,
+        nombre:      dir.name,
+        unidad:      dir.unitName ?? dir.name,
+        miembros:    sapIds.length,
         compraBruta,
         compraNeta,
         rate,
         comision,
-        pedidos:       result._count.id,
+        pedidos:     result._count.id,
       };
     }));
 
-    // Ordenar por compraBruta desc (ranking)
     unidades.sort((a, b) => b.compraBruta - a.compraBruta);
 
     const totalBruta    = unidades.reduce((s, u) => s + u.compraBruta, 0);
@@ -91,9 +83,6 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
     const totalComision = unidades.reduce((s, u) => s + u.comision, 0);
     const totalPedidos  = unidades.reduce((s, u) => s + u.pedidos, 0);
 
-    // --- Datos adicionales para el dashboard ---
-
-    // Ventas de hoy y ayer
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd   = new Date(todayStart.getTime() + 86400000);
     const yestStart  = new Date(todayStart.getTime() - 86400000);
@@ -104,7 +93,6 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
     const todaySales     = Number(todayAgg._sum.amount ?? 0);
     const yesterdaySales = Number(yestAgg._sum.amount  ?? 0);
 
-    // Mes anterior
     const prevMonth = month === 1 ? 12 : month - 1;
     const prevYear  = month === 1 ? year - 1 : year;
     const prevGte   = new Date(prevYear, prevMonth - 1, 1);
@@ -115,7 +103,6 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
     });
     const lastMonthBruta = Number(prevMonthAgg._sum.amount ?? 0);
 
-    // Consultoras activas (con al menos 1 venta en el mes)
     const activeUserIds = await prisma.sale.findMany({
       where: { saleDate: { gte, lt }, status: { not: 'cancelled' } },
       select: { userId: true },
@@ -123,7 +110,6 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
     });
     const consultorasActivas = activeUserIds.length;
 
-    // Consultoras activas mes anterior
     const prevActiveUserIds = await prisma.sale.findMany({
       where: { saleDate: { gte: prevGte, lt: prevLt }, status: { not: 'cancelled' } },
       select: { userId: true },
@@ -131,10 +117,8 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
     });
     const lastMonthConsultorasActivas = prevActiveUserIds.length;
 
-    // Unidades activas este mes y mes anterior
-    const unidadesActivas         = unidades.filter(u => u.compraBruta > 0).length;
-    const prevUnidadesActivas     = await (async () => {
-      // Approx: cuantas unidades tuvieron ventas el mes anterior
+    const unidadesActivas = unidades.filter(u => u.compraBruta > 0).length;
+    const prevUnidadesActivas = await (async () => {
       let count = 0;
       for (const dir of directoras) {
         const miembros = await prisma.user.findMany({ where: { supervisorId: dir.id }, select: { sapUserId: true } });
@@ -148,7 +132,6 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
       return count;
     })();
 
-    // Top 5 personas por produccion
     const topSalesGroups = await prisma.sale.groupBy({
       by: ['userId'],
       where: { saleDate: { gte, lt }, status: { not: 'cancelled' } },
@@ -165,7 +148,6 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
       })
       .slice(0, 5);
 
-    // Total metas del mes (para avance general)
     const metasAgg = await prisma.target.aggregate({
       where: { month, year },
       _sum: { targetAmount: true },
@@ -230,27 +212,24 @@ router.get('/user/:sapUserId', authenticateJWT, async (req: AuthRequest, res: Re
     const lt    = new Date(year, month, 1);
 
     const user = await prisma.user.findUnique({
-      where: { sapUserId: req.params.sapUserId },
+      where: { sapUserId: req.params.sapUserId as string },
       include: {
-        supervisor:  { select: { name: true, sapUserId: true, unitName: true } },
-        subordinates:{ select: { name: true, sapUserId: true } },
-        reclutas:    { select: { name: true, sapUserId: true, role: true } },
+        supervisor:   { select: { name: true, sapUserId: true, unitName: true } },
+        subordinates: { select: { name: true, sapUserId: true } },
+        reclutas:     { select: { name: true, sapUserId: true, role: true } },
       },
     });
     if (!user) { res.status(404).json({ error: 'Usuario no encontrado' }); return; }
 
-    // Ventas del mes
     const ventasMes = await prisma.sale.aggregate({
       where: { userId: user.sapUserId, saleDate: { gte, lt }, status: { not: 'cancelled' } },
       _sum: { amount: true }, _count: { id: true },
     });
 
-    // Meta del mes
     const meta = await prisma.target.findUnique({
       where: { userId_month_year: { userId: user.sapUserId, month, year } },
     });
 
-    // Historial 6 meses
     const historial = await Promise.all(
       Array.from({ length: 6 }, (_, i) => {
         const d = new Date(year, month - 1 - i, 1);
@@ -266,7 +245,6 @@ router.get('/user/:sapUserId', authenticateJWT, async (req: AuthRequest, res: Re
       })
     );
 
-    // Últimas 10 ventas
     const ultimasVentas = await prisma.sale.findMany({
       where: { userId: user.sapUserId, status: { not: 'cancelled' } },
       orderBy: { saleDate: 'desc' },
@@ -309,7 +287,7 @@ router.get('/unit/:directoraId', authenticateJWT, async (req: AuthRequest, res: 
     const lt    = new Date(year, month, 1);
 
     const directora = await prisma.user.findUnique({
-      where: { id: req.params.directoraId },
+      where: { id: req.params.directoraId as string },
       select: { id: true, sapUserId: true, name: true, unitName: true },
     });
     if (!directora) { res.status(404).json({ error: 'Directora no encontrada' }); return; }
@@ -325,7 +303,6 @@ router.get('/unit/:directoraId', authenticateJWT, async (req: AuthRequest, res: 
       ...miembros.map(m => ({ ...m, esDirectora: false })),
     ];
 
-    // Ventas de cada miembro
     const detalle = await Promise.all(allMembers.map(async m => {
       const r = await prisma.sale.aggregate({
         where: { userId: m.sapUserId, saleDate: { gte, lt }, status: { not: 'cancelled' } },
@@ -334,7 +311,7 @@ router.get('/unit/:directoraId', authenticateJWT, async (req: AuthRequest, res: 
       const meta = await prisma.target.findUnique({
         where: { userId_month_year: { userId: m.sapUserId, month, year } },
       });
-      const ventas = Number(r._sum.amount ?? 0);
+      const ventas  = Number(r._sum.amount ?? 0);
       const metaAmt = Number(meta?.targetAmount ?? 0);
       return {
         ...m,
@@ -361,20 +338,17 @@ router.get('/unit/:directoraId', authenticateJWT, async (req: AuthRequest, res: 
   }
 });
 
-// GET /api/superadmin/sales-report?startDate=2026-01-01&endDate=2026-06-30&unitId=<directoraId>
-// Reporte detallado de ventas por persona — para exportar a Excel
+// GET /api/superadmin/sales-report
 router.get('/sales-report', authenticateJWT, async (req: AuthRequest, res: Response) => {
   try {
     if (!requireSuperAdmin(req, res)) return;
 
     const { startDate, endDate, unitId } = req.query as Record<string, string>;
 
-    // Rango de fechas (default: mes actual)
-    const now   = new Date();
-    const gte   = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
-    const lt    = endDate   ? new Date(new Date(endDate).setDate(new Date(endDate).getDate() + 1)) : new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const now = new Date();
+    const gte = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
+    const lt  = endDate   ? new Date(new Date(endDate).setDate(new Date(endDate).getDate() + 1)) : new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-    // Si viene unitId filtramos por miembros de esa unidad
     let userIds: string[] | undefined;
     if (unitId) {
       const directora = await prisma.user.findUnique({ where: { id: unitId } });
@@ -386,7 +360,6 @@ router.get('/sales-report', authenticateJWT, async (req: AuthRequest, res: Respo
       userIds = [directora.sapUserId, ...miembros.map(m => m.sapUserId)];
     }
 
-    // Todos los usuarios relevantes (excluye superadmins locales)
     const users = await prisma.user.findMany({
       where: {
         isSuperAdmin: false,
@@ -400,14 +373,9 @@ router.get('/sales-report', authenticateJWT, async (req: AuthRequest, res: Respo
       orderBy: { name: 'asc' },
     });
 
-    // Ventas en el período para cada usuario
     const rows = await Promise.all(users.map(async u => {
       const r = await prisma.sale.aggregate({
-        where: {
-          userId: u.sapUserId,
-          saleDate: { gte, lt },
-          status: { not: 'cancelled' },
-        },
+        where: { userId: u.sapUserId, saleDate: { gte, lt }, status: { not: 'cancelled' } },
         _sum: { amount: true },
         _count: { id: true },
       });
@@ -415,8 +383,7 @@ router.get('/sales-report', authenticateJWT, async (req: AuthRequest, res: Respo
       const totalNeta  = totalBruta / ITBIS;
       const pedidos    = r._count.id;
 
-      // Determinar nombre de unidad
-      let unidad = '—';
+      let unidad    = '—';
       let directora = '—';
       if (u.role === 'directora') {
         unidad    = u.unitName ?? u.name;
@@ -427,22 +394,14 @@ router.get('/sales-report', authenticateJWT, async (req: AuthRequest, res: Respo
       }
 
       return {
-        sapUserId: u.sapUserId,
-        nombre:    u.name,
-        rol:       u.role,
-        unidad,
-        directora,
-        totalBruta,
-        totalNeta,
-        pedidos,
-        promedio:  pedidos > 0 ? totalBruta / pedidos : 0,
+        sapUserId: u.sapUserId, nombre: u.name, rol: u.role,
+        unidad, directora, totalBruta, totalNeta, pedidos,
+        promedio: pedidos > 0 ? totalBruta / pedidos : 0,
       };
     }));
 
-    // Ordenar por totalBruta desc
     rows.sort((a, b) => b.totalBruta - a.totalBruta);
 
-    // Resumen por unidad
     const unidadMap = new Map<string, {
       unidad: string; directora: string;
       totalBruta: number; totalNeta: number; pedidos: number; miembros: number;
@@ -463,7 +422,7 @@ router.get('/sales-report', authenticateJWT, async (req: AuthRequest, res: Respo
       .map(u => ({
         ...u,
         rate:     getUnitRate(u.totalBruta),
-        comision: (u.totalNeta) * getUnitRate(u.totalBruta),
+        comision: u.totalNeta * getUnitRate(u.totalBruta),
       }))
       .sort((a, b) => b.totalBruta - a.totalBruta);
 
@@ -479,26 +438,22 @@ router.get('/sales-report', authenticateJWT, async (req: AuthRequest, res: Respo
   }
 });
 
-// ─── GET /superadmin/metas ────────────────────────────────────────────────────
-
+// GET /api/superadmin/metas
 router.get('/metas', authenticateJWT, async (req: AuthRequest, res: Response) => {
   try {
     const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
     const year  = parseInt(req.query.year  as string) || new Date().getFullYear();
 
-    // Todas las directoras
     const directoras = await prisma.user.findMany({
       where: { role: 'directora' },
       include: { subordinates: true },
     });
 
     const grupos = await Promise.all(directoras.map(async (d) => {
-      // Meta directora
       const dirTarget = await prisma.target.findUnique({
         where: { userId_month_year: { userId: d.sapUserId, month, year } },
       });
 
-      // Miembros con sus metas
       const miembros = await Promise.all(d.subordinates.map(async (s) => {
         const t = await prisma.target.findUnique({
           where: { userId_month_year: { userId: s.sapUserId, month, year } },
@@ -528,8 +483,7 @@ router.get('/metas', authenticateJWT, async (req: AuthRequest, res: Response) =>
   }
 });
 
-// ─── PUT /superadmin/metas ────────────────────────────────────────────────────
-
+// PUT /api/superadmin/metas
 router.put('/metas', authenticateJWT, async (req: AuthRequest, res: Response) => {
   try {
     const { month, year, targets } = req.body as {
@@ -552,6 +506,97 @@ router.put('/metas', authenticateJWT, async (req: AuthRequest, res: Response) =>
 
     await prisma.$transaction(ops);
     res.json({ ok: true, updated: targets.length });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// GET /api/superadmin/iniciadoras?month=5&year=2026
+router.get('/iniciadoras', authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!requireSuperAdmin(req, res)) return;
+
+    const now   = new Date();
+    const month = req.query.month ? parseInt(req.query.month as string) : now.getMonth() + 1;
+    const year  = req.query.year  ? parseInt(req.query.year  as string) : now.getFullYear();
+    const gte   = new Date(year, month - 1, 1);
+    const lt    = new Date(year, month, 1);
+
+    const iniciadoras = await prisma.user.findMany({
+      where: { role: { in: ['iniciadora', 'diq'] } },
+      select: {
+        id: true, sapUserId: true, name: true, role: true, unitName: true,
+        supervisor: { select: { name: true, unitName: true } },
+        reclutas: {
+          select: { id: true, sapUserId: true, name: true, role: true },
+          orderBy: { name: 'asc' },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const result = await Promise.all(iniciadoras.map(async (ini) => {
+      if (ini.reclutas.length === 0) {
+        return {
+          id: ini.id, sapUserId: ini.sapUserId, name: ini.name,
+          role: ini.role,
+          unidad: ini.supervisor?.unitName ?? ini.supervisor?.name ?? '—',
+          totalReclutas: 0, reclutasActivas: 0,
+          produccionBruta: 0, produccionNeta: 0,
+          reclutas: [],
+        };
+      }
+
+      const reclutaIds = ini.reclutas.map(r => r.sapUserId);
+
+      const ventas = await prisma.sale.groupBy({
+        by: ['userId'],
+        where: {
+          userId: { in: reclutaIds },
+          saleDate: { gte, lt },
+          status: { not: 'cancelled' },
+        },
+        _sum: { amount: true },
+        _count: { id: true },
+      });
+
+      const ventasMap = new Map(ventas.map(v => [v.userId, {
+        total:   Number(v._sum.amount ?? 0),
+        pedidos: v._count.id,
+      }]));
+
+      const reclutasDetalle = ini.reclutas.map(r => {
+        const v = ventasMap.get(r.sapUserId);
+        return {
+          sapUserId: r.sapUserId,
+          name:      r.name,
+          role:      r.role,
+          ventas:    v?.total   ?? 0,
+          pedidos:   v?.pedidos ?? 0,
+          activa:    (v?.total ?? 0) > 0,
+        };
+      });
+
+      reclutasDetalle.sort((a, b) => b.ventas - a.ventas);
+
+      const produccionBruta = reclutasDetalle.reduce((s, r) => s + r.ventas, 0);
+      const reclutasActivas = reclutasDetalle.filter(r => r.activa).length;
+
+      return {
+        id: ini.id, sapUserId: ini.sapUserId, name: ini.name,
+        role: ini.role,
+        unidad: ini.supervisor?.unitName ?? ini.supervisor?.name ?? '—',
+        totalReclutas:   ini.reclutas.length,
+        reclutasActivas,
+        produccionBruta,
+        produccionNeta:  produccionBruta / ITBIS,
+        reclutas:        reclutasDetalle,
+      };
+    }));
+
+    result.sort((a, b) => b.produccionBruta - a.produccionBruta);
+
+    res.json({ month, year, iniciadoras: result });
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }

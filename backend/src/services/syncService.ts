@@ -43,10 +43,26 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
     const directoraCardCodes = new Set<string>();
     for (const [, g] of groupMap) directoraCardCodes.add(g.directoraCardCode);
 
+    // 3b. Identificar iniciadoras: cualquier CardCode que aparezca como U_CodIni de alguien más
+    //     Construir mapa: CardCode → U_DIQ para cruzarlo después
+    const inciadoraCardCodes = new Set<string>();
+    const diqMap = new Map<string, string | null>(); // CardCode → U_DIQ
+    for (const bp of partners) {
+      diqMap.set(bp.CardCode, bp.U_DIQ ?? null);
+      if (bp.U_CodIni) inciadoraCardCodes.add(bp.U_CodIni);
+    }
+
     // 4. Upsert todos los usuarios
     for (const bp of partners) {
       const isDirectora = bp.U_Tipo === 'D' || directoraCardCodes.has(bp.CardCode);
-      const role = isDirectora ? 'directora' : 'consultora';
+      const isIniciadora = inciadoraCardCodes.has(bp.CardCode);
+      const isDiq = isIniciadora && (bp.U_DIQ === 'S');
+
+      // Prioridad: directora > diq > iniciadora > consultora
+      const role = isDirectora ? 'directora'
+                 : isDiq       ? 'diq'
+                 : isIniciadora ? 'iniciadora'
+                 : 'consultora';
 
       const existing = await prisma.user.findUnique({ where: { sapUserId: bp.CardCode } });
 
@@ -54,29 +70,60 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
       const sapUnitName = isDirectora ? directoraUnitMap.get(bp.CardCode) : undefined;
 
       if (existing) {
-        await prisma.user.update({
-          where: { sapUserId: bp.CardCode },
-          data: {
-            name: bp.CardName,
-            email: bp.EmailAddress || existing.email,
-            role,
-            // Solo sobreescribir unitName si SAP lo trae y el usuario no lo personalizó
-            ...(sapUnitName && !existing.unitName ? { unitName: sapUnitName } : {}),
-            lastSapSync: new Date(),
-          },
-        });
+        try {
+          await prisma.user.update({
+            where: { sapUserId: bp.CardCode },
+            data: {
+              name: bp.CardName,
+              email: bp.EmailAddress || existing.email,
+              role,
+              // Solo sobreescribir unitName si SAP lo trae y el usuario no lo personalizó
+              ...(sapUnitName && !existing.unitName ? { unitName: sapUnitName } : {}),
+              lastSapSync: new Date(),
+            },
+          });
+        } catch (e: any) {
+          // Email duplicado con otro usuario -- actualizar sin tocar el email
+          if (e.code === 'P2002') {
+            await prisma.user.update({
+              where: { sapUserId: bp.CardCode },
+              data: {
+                name: bp.CardName,
+                role,
+                ...(sapUnitName && !existing.unitName ? { unitName: sapUnitName } : {}),
+                lastSapSync: new Date(),
+              },
+            });
+          } else throw e;
+        }
         updated++;
       } else {
-        await prisma.user.create({
-          data: {
-            sapUserId: bp.CardCode,
-            name: bp.CardName,
-            email: bp.EmailAddress || null,
-            role,
-            unitName: sapUnitName ?? null,
-            lastSapSync: new Date(),
-          },
-        });
+        try {
+          await prisma.user.create({
+            data: {
+              sapUserId: bp.CardCode,
+              name: bp.CardName,
+              email: bp.EmailAddress || null,
+              role,
+              unitName: sapUnitName ?? null,
+              lastSapSync: new Date(),
+            },
+          });
+        } catch (e: any) {
+          // Email duplicado — crear sin email
+          if (e.code === 'P2002') {
+            await prisma.user.create({
+              data: {
+                sapUserId: bp.CardCode,
+                name: bp.CardName,
+                email: null,
+                role,
+                unitName: sapUnitName ?? null,
+                lastSapSync: new Date(),
+              },
+            });
+          } else throw e;
+        }
         created++;
       }
     }
@@ -294,4 +341,13 @@ export async function syncCreditNotes(fullSync = false): Promise<{ upserted: num
     });
     throw error;
   }
+}
+
+// ─── Sync completo ────────────────────────────────────────────────────────────
+export async function fullSync(): Promise<void> {
+  logger.info('SYNC: iniciando sync completo...');
+  await syncUsers();
+  await syncSales(true);
+  await syncCreditNotes(true);
+  logger.info('SYNC: sync completo finalizado');
 }
