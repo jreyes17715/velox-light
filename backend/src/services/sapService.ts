@@ -19,6 +19,12 @@ export interface SapBusinessPartnerGroup {
   U_CardName?: string; // Nombre de la directora
 }
 
+export interface SapOrderLine {
+  ItemCode: string;
+  LineTotal: number;
+  DiscountPercent: number; // ya NO se usa para clasificar produccion, solo informativo
+}
+
 export interface SapOrder {
   DocEntry: number;
   DocNum: number;
@@ -27,6 +33,7 @@ export interface SapOrder {
   DocTotal: number;
   DocumentStatus: string; // 'O' = Open, 'C' = Closed
   Cancelled: string;      // 'Y' | 'N'
+  DocumentLines?: SapOrderLine[];
 }
 
 interface SapListResponse<T> {
@@ -34,6 +41,9 @@ interface SapListResponse<T> {
 }
 
 const PAGE_SIZE = 500;
+// Orders trae las líneas de detalle (DocumentLines) embebidas, lo que infla mucho
+// el tamaño de cada página. Un $top más chico reduce el riesgo de ECONNRESET.
+const ORDERS_PAGE_SIZE = 50;
 
 // ─── BusinessPartners ────────────────────────────────────────────────────────
 
@@ -88,6 +98,39 @@ export async function fetchBusinessPartnerGroups(): Promise<SapBusinessPartnerGr
   return all;
 }
 
+// ─── Items (clasificacion Seccion 1 / Seccion 2) ──────────────────────────────
+// Confirmado con el contacto de SAP: la tabla OITM tiene los campos QryGroup1 y
+// QryGroup2. QryGroup1 = 'Y' significa que el articulo es "Seccion 1" (producto
+// que cuenta para produccion/comisiones). El Service Layer expone QryGroup1 como
+// "Properties1" en el JSON de /Items (QryGroup2 -> Properties2, etc).
+//
+// Devuelve un Set con los ItemCode que son Seccion 1 (Properties1 = 'tYES').
+
+export async function fetchSection1ItemCodes(): Promise<Set<string>> {
+  const codes = new Set<string>();
+  let skip = 0;
+
+  while (true) {
+    logger.debug(`SAP: Items skip=${skip}`);
+    const data = await sapGet<SapListResponse<{ ItemCode: string; Properties1: string }>>('/Items', {
+      $select: 'ItemCode,Properties1',
+      $top: String(PAGE_SIZE),
+      $skip: String(skip),
+    });
+
+    const items = data.value || [];
+    for (const item of items) {
+      if (item.Properties1 === 'tYES') codes.add(item.ItemCode);
+    }
+
+    if (items.length < PAGE_SIZE) break;
+    skip += PAGE_SIZE;
+  }
+
+  logger.info(`SAP: ${codes.size} articulos de Seccion 1 (QryGroup1)`);
+  return codes;
+}
+
 // ─── Orders ──────────────────────────────────────────────────────────────────
 
 export async function fetchOrdersSince(sinceDate: Date): Promise<SapOrder[]> {
@@ -98,18 +141,18 @@ export async function fetchOrdersSince(sinceDate: Date): Promise<SapOrder[]> {
   while (true) {
     logger.debug(`SAP: Orders skip=${skip} desde=${dateStr}`);
     const data = await sapGet<SapListResponse<SapOrder>>('/Orders', {
-      $select: 'DocEntry,DocNum,CardCode,DocDate,DocTotal,DocumentStatus,Cancelled',
+      $select: 'DocEntry,DocNum,CardCode,DocDate,DocTotal,DocumentStatus,Cancelled,DocumentLines',
       $filter: `DocDate ge '${dateStr}'`,
       $orderby: 'DocDate asc',
-      $top: String(PAGE_SIZE),
+      $top: String(ORDERS_PAGE_SIZE),
       $skip: String(skip),
     });
 
     const items = data.value || [];
     all.push(...items);
 
-    if (items.length < PAGE_SIZE) break;
-    skip += PAGE_SIZE;
+    if (items.length < ORDERS_PAGE_SIZE) break;
+    skip += ORDERS_PAGE_SIZE;
   }
 
   logger.info(`SAP: ${all.length} órdenes obtenidas desde ${dateStr}`);

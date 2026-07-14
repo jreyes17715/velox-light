@@ -25,7 +25,7 @@ interface ReportResponse {
 interface UnidadOption { id: string; nombre: string; unidad: string; }
 
 function fmtDOP(n: number) {
-  return new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
 // ─── Vista Ventas SuperAdmin ──────────────────────────────────────────────────
@@ -220,7 +220,6 @@ function SuperAdminSalesView() {
                       <th className="px-4 py-3 text-right">Venta Neta</th>
                       <th className="px-4 py-3 text-right">Pedidos</th>
                       <th className="px-4 py-3 text-center">Tasa</th>
-                      <th className="px-4 py-3 text-right">Comisión Est.</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -243,7 +242,6 @@ function SuperAdminSalesView() {
                             'bg-gray-100 text-gray-400'
                           }`}>{r.rate > 0 ? `${(r.rate * 100).toFixed(0)}%` : '—'}</span>
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-600">{r.comision > 0 ? fmtDOP(r.comision) : '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -254,7 +252,6 @@ function SuperAdminSalesView() {
                       <td className="px-4 py-3 text-right font-bold text-pink-800">{fmtDOP(data.porUnidad.reduce((s, r) => s + r.totalNeta, 0))}</td>
                       <td className="px-4 py-3 text-right font-bold text-pink-800">{data.porUnidad.reduce((s, r) => s + r.pedidos, 0)}</td>
                       <td />
-                      <td className="px-4 py-3 text-right font-bold text-pink-800">{fmtDOP(data.porUnidad.reduce((s, r) => s + r.comision, 0))}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -389,6 +386,7 @@ export function SalesPage() {
                 No hay ventas en el período seleccionado
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide border-b border-gray-100">
@@ -416,6 +414,7 @@ export function SalesPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
 

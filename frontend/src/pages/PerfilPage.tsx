@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout/Layout';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import api from '../utils/api';
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────
 
 interface CreditNote {
   id: string;
@@ -15,6 +16,20 @@ interface CreditNote {
   ncfRef: string | null;
   ncfNC: string | null;
   cancelled: boolean;
+}
+
+interface DiqKpis {
+  consultoras:  { total: number; activas: number; meta: number; pct: number };
+  produccion:   { bruta: number; neta: number; meta: number; pct: number };
+  iniciaciones: { total: number; meta: number; pct: number };
+}
+
+interface DiqProgress {
+  startDate: string;
+  endDate: string;
+  diasRestantes: number;
+  vencido: boolean;
+  kpis: DiqKpis;
 }
 
 interface ProfileData {
@@ -30,9 +45,10 @@ interface ProfileData {
   subordinadas: { id: string; name: string; sapUserId: string; role: string; }[];
   creditNotes: CreditNote[];
   totalCreditNotesMes: number;
+  diq: DiqProgress | null;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────
 
 function fmt(n: number) {
   return new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', maximumFractionDigits: 0 }).format(n);
@@ -44,9 +60,101 @@ const I = ({ icon, className = '' }: { icon: string; className?: string }) => (
   <i className={`${icon} fa-fw ${className}`} aria-hidden="true" />
 );
 
-// ─── Página ───────────────────────────────────────────────────────────────────
+function DiqBar({ label, current, target, currentLabel }: { label: string; current: number; target: number; currentLabel: string }) {
+  const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
+  const met = current >= target;
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="font-medium text-gray-700">{label}</span>
+        <span className={met ? 'text-green-600 font-semibold' : 'text-gray-500'}>{currentLabel}</span>
+      </div>
+      <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${met ? 'bg-green-500' : 'bg-amber-500'}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function DiqProgressCard({ diq }: { diq: DiqProgress }) {
+  const { kpis } = diq;
+  const produccionMet   = kpis.produccion.neta >= kpis.produccion.meta;
+  const consultorasMet  = kpis.consultoras.activas >= kpis.consultoras.meta;
+  const todoOk = produccionMet && consultorasMet;
+
+  const faltaProduccion  = Math.max(0, kpis.produccion.meta - kpis.produccion.neta);
+  const faltaConsultoras = Math.max(0, kpis.consultoras.meta - kpis.consultoras.activas);
+
+  const riesgo = !todoOk && diq.diasRestantes <= 30;
+
+  return (
+    <div className={`rounded-xl border p-5 ${diq.vencido ? 'bg-red-50 border-red-200' : riesgo ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+          <I icon="fa-solid fa-star" className="text-amber-500" />
+          Progreso hacia Directora (DIQ)
+        </h2>
+        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+          diq.vencido ? 'bg-red-100 text-red-700' : todoOk ? 'bg-green-100 text-green-700' : riesgo ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+        }`}>
+          {diq.vencido ? 'Periodo vencido' : `${diq.diasRestantes} dias restantes`}
+        </span>
+      </div>
+
+      <div className="space-y-4">
+        <DiqBar
+          label="Produccion neta acumulada"
+          current={kpis.produccion.neta}
+          target={kpis.produccion.meta}
+          currentLabel={`${fmt(kpis.produccion.neta)} / ${fmt(kpis.produccion.meta)}`}
+        />
+        <DiqBar
+          label="Consultoras activas"
+          current={kpis.consultoras.activas}
+          target={kpis.consultoras.meta}
+          currentLabel={`${kpis.consultoras.activas} / ${kpis.consultoras.meta}`}
+        />
+        <DiqBar
+          label="Nuevas iniciaciones"
+          current={kpis.iniciaciones.total}
+          target={kpis.iniciaciones.meta}
+          currentLabel={`${kpis.iniciaciones.total} / ${kpis.iniciaciones.meta}`}
+        />
+      </div>
+
+      {!todoOk && (
+        <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Que le falta</p>
+          {!produccionMet && (
+            <p className="text-xs text-gray-600">
+              <I icon="fa-solid fa-circle-exclamation" className="text-amber-500 mr-1" />
+              {fmt(faltaProduccion)} en produccion neta
+            </p>
+          )}
+          {!consultorasMet && (
+            <p className="text-xs text-gray-600">
+              <I icon="fa-solid fa-circle-exclamation" className="text-amber-500 mr-1" />
+              {faltaConsultoras} consultora{faltaConsultoras !== 1 ? 's' : ''} activa{faltaConsultoras !== 1 ? 's' : ''} mas
+            </p>
+          )}
+        </div>
+      )}
+
+      {todoOk && (
+        <p className="mt-4 pt-4 border-t border-gray-100 text-xs text-green-700 font-medium">
+          <I icon="fa-solid fa-circle-check" className="mr-1" />
+          Cumple los requisitos minimos para calificar como Directora.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Pagina ────────────────────────────────────────────────
 
 export default function PerfilPage() {
+  const { userId } = useParams<{ userId?: string }>();
+  const navigate = useNavigate();
   const [data, setData]       = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
@@ -54,17 +162,20 @@ export default function PerfilPage() {
   const [ncFilter, setNcFilter] = useState('');
 
   useEffect(() => {
-    api.get<ProfileData>('/profile/me')
+    setLoading(true);
+    setData(null);
+    const endpoint = userId ? `/profile/${userId}` : '/profile/me';
+    api.get<ProfileData>(endpoint)
       .then(r => setData(r.data))
       .catch(e => setError(e.response?.data?.error ?? 'Error cargando perfil'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [userId]);
 
   if (loading) return <Layout><div className="flex items-center justify-center h-64 text-gray-400"><I icon="fa-solid fa-spinner fa-spin" className="text-3xl" /></div></Layout>;
   if (error)   return <Layout><div className="p-6 text-red-600">{error}</div></Layout>;
   if (!data)   return null;
 
-  const { user, mesActual, historial, reclutas, supervisora, subordinadasCount, subordinadas, creditNotes, totalCreditNotesMes } = data;
+  const { user, mesActual, historial, reclutas, supervisora, subordinadasCount, subordinadas, creditNotes, totalCreditNotesMes, diq } = data;
   const achievement = mesActual.meta > 0 ? Math.min((mesActual.ventas / mesActual.meta) * 100, 100) : 0;
   const roleLabel = user.isSuperAdmin ? 'Super Admin'
     : user.role === 'directora' ? 'Directora'
@@ -88,6 +199,19 @@ export default function PerfilPage() {
   return (
     <Layout>
       <div className="p-6 max-w-4xl mx-auto space-y-5">
+
+        {/* Banner modo Super Admin */}
+        {userId && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between">
+            <p className="text-sm text-blue-700">
+              <I icon="fa-solid fa-eye" className="mr-2" />
+              Viendo el perfil de <span className="font-semibold">{user.name}</span> (modo Super Admin)
+            </p>
+            <button onClick={() => navigate(-1)} className="text-xs font-medium text-blue-700 hover:text-blue-900 flex items-center gap-1">
+              <I icon="fa-solid fa-arrow-left" />Volver
+            </button>
+          </div>
+        )}
 
         {/* Header perfil */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 flex items-center gap-5">
@@ -115,8 +239,11 @@ export default function PerfilPage() {
           </div>
         </div>
 
+        {/* Progreso DIQ */}
+        {diq && <DiqProgressCard diq={diq} />}
+
         {/* Stats del mes */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Ventas del Mes</p>
             <p className="text-xl font-bold text-gray-900 mt-1">{fmt(mesActual.ventas)}</p>
@@ -175,7 +302,7 @@ export default function PerfilPage() {
             {/* Historial 6 meses */}
             <div className="bg-white rounded-xl border border-gray-200 p-5">
               <h2 className="font-semibold text-gray-800 mb-4 text-sm">
-                <I icon="fa-solid fa-chart-bar" className="mr-2 text-pink-500" />Historial — Ultimos 6 Meses
+                <I icon="fa-solid fa-chart-bar" className="mr-2 text-pink-500" />Historial - Ultimos 6 Meses
               </h2>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={historial} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>

@@ -48,6 +48,7 @@ function App() {
           <Route path="/comisiones" element={<ProtectedRoute><ComisionesPage /></ProtectedRoute>} />
           <Route path="/superadmin/:tab?" element={<ProtectedRoute><SuperAdminPage /></ProtectedRoute>} />
           <Route path="/perfil" element={<ProtectedRoute><PerfilPage /></ProtectedRoute>} />
+          <Route path="/perfil/:userId" element={<ProtectedRoute><PerfilPage /></ProtectedRoute>} />
           <Route path="/diq" element={<ProtectedRoute><DIQPage /></ProtectedRoute>} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

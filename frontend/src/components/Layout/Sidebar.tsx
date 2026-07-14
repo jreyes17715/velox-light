@@ -127,7 +127,12 @@ function roleLabel(role: string): string {
   return 'Consultora';
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user, logout, setUser } = useAuthStore();
   const navigate = useNavigate();
   const [editingUnit, setEditingUnit] = useState(false);
@@ -158,10 +163,10 @@ export function Sidebar() {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <aside className={`w-60 ${theme.aside} flex flex-col min-h-screen flex-shrink-0`}>
+    <aside className={`w-60 ${theme.aside} flex flex-col min-h-screen flex-shrink-0 fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:static md:z-auto`}>
 
       {/* Logo */}
-      <div className={`px-6 py-5 border-b ${theme.border}`}>
+      <div className={`px-6 py-5 border-b ${theme.border} flex items-center justify-between`}>
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 ${theme.logoBg} rounded-lg flex items-center justify-center flex-shrink-0`}>
             <span className={`${theme.logoText} text-sm font-bold`}>MK</span>
@@ -171,6 +176,9 @@ export function Sidebar() {
             <p className={`${theme.userSubtext} text-xs`}>Producción</p>
           </div>
         </div>
+        <button onClick={onClose} aria-label="Cerrar menu" className={`md:hidden ${theme.userSubtext} hover:opacity-80 w-8 h-8 flex items-center justify-center`}>
+          <i className="fa-solid fa-xmark text-lg" aria-hidden="true" />
+        </button>
       </div>
 
       {/* User info */}
@@ -222,6 +230,7 @@ export function Sidebar() {
           <NavLink
             key={item.to}
             to={item.to}
+            onClick={onClose}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive ? theme.activeNav : theme.inactiveNav
@@ -240,6 +249,7 @@ export function Sidebar() {
             <NavLink
               to="/superadmin"
               end
+              onClick={onClose}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive ? theme.superLinkActive : theme.superLink

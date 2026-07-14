@@ -203,7 +203,7 @@ export default function DIQPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
             <p className="text-2xl font-bold text-pink-600">{activasCount}</p>
             <p className="text-xs text-gray-500 mt-0.5">En proceso</p>
@@ -259,7 +259,7 @@ export default function DIQPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 mt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
                   <KPIBar label="Consultoras activas" value={diq.kpis.consultoras.activas}
                     meta={diq.kpis.consultoras.meta} pct={diq.kpis.consultoras.pct} fmt={n => `${n}`} />
                   <KPIBar label="Produccion acumulada" value={diq.kpis.produccion.neta}
@@ -270,7 +270,7 @@ export default function DIQPage() {
 
                 {selected?.id === diq.id && (
                   <div className="mt-5 pt-5 border-t border-gray-100 space-y-4">
-                    <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                       <div className="bg-gray-50 rounded-lg p-3">
                         <p className="text-xs text-gray-500">Total reclutas</p>
                         <p className="text-xl font-bold text-gray-800">{diq.kpis.consultoras.total}</p>

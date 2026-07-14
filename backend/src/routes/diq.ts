@@ -9,7 +9,7 @@ const ITBIS = 1.18;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function calcDIQKPIs(diqUserId: string, startDate: Date, endDate: Date) {
+export async function calcDIQKPIs(diqUserId: string, startDate: Date, endDate: Date) {
   const user = await prisma.user.findUnique({
     where: { id: diqUserId },
     select: { id: true, sapUserId: true, name: true },

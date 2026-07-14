@@ -78,7 +78,7 @@ export function ConsultorasPage() {
           {error && <ErrorAlert message={error} />}
 
           {/* Resumen cards */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 text-center">
               <p className="text-2xl font-bold text-gray-800">{consultoras.length}</p>
               <p className="text-xs text-gray-500 mt-1">Total consultoras</p>
@@ -108,13 +108,13 @@ export function ConsultorasPage() {
 
           {/* Filtro y tabla */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
               <input
                 type="text"
                 placeholder="Buscar consultora..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-pink-300 w-64"
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-pink-300 w-full sm:w-64"
               />
               <p className="text-xs text-gray-400">{sorted.length} consultoras</p>
             </div>
@@ -122,6 +122,7 @@ export function ConsultorasPage() {
             {sorted.length === 0 ? (
               <div className="py-12 text-center text-gray-400">No se encontraron consultoras</div>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide border-b border-gray-100">
@@ -187,6 +188,7 @@ export function ConsultorasPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>

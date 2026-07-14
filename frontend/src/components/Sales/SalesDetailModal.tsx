@@ -125,7 +125,7 @@ export function SalesDetailModal({ userId, isOpen, onClose, month, year }: Sales
         </div>
 
         {/* Tabla */}
-        <div className="overflow-y-auto flex-1">
+        <div className="overflow-auto flex-1">
           {isLoading ? (
             <div className="flex items-center justify-center py-12 text-gray-400">Cargando...</div>
           ) : sales.length === 0 ? (

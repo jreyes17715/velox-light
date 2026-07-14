@@ -379,7 +379,11 @@ router.get('/sales-report', authenticateJWT, async (req: AuthRequest, res: Respo
         _sum: { amount: true },
         _count: { id: true },
       });
-      const totalBruta = Number(r._sum.amount ?? 0);
+      const creditAgg = await prisma.creditNote.aggregate({
+        where: { userId: u.sapUserId, docDate: { gte, lt }, cancelled: false },
+        _sum: { amount: true },
+      });
+      const totalBruta = Math.max(0, Number(r._sum.amount ?? 0) - Number(creditAgg._sum.amount ?? 0));
       const totalNeta  = totalBruta / ITBIS;
       const pedidos    = r._count.id;
 
@@ -597,6 +601,49 @@ router.get('/iniciadoras', authenticateJWT, async (req: AuthRequest, res: Respon
     result.sort((a, b) => b.produccionBruta - a.produccionBruta);
 
     res.json({ month, year, iniciadoras: result });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// GET /api/superadmin/consultoras -- lista plana de todas las consultoras/iniciadoras/diq del sistema
+router.get('/consultoras', authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!requireSuperAdmin(req, res)) return;
+
+    const now   = new Date();
+    const month = req.query.month ? parseInt(req.query.month as string) : now.getMonth() + 1;
+    const year  = req.query.year  ? parseInt(req.query.year  as string) : now.getFullYear();
+    const gte   = new Date(year, month - 1, 1);
+    const lt    = new Date(year, month, 1);
+
+    const users = await prisma.user.findMany({
+      where: {
+        role: { in: ['consultora', 'iniciadora', 'diq'] },
+        isSuperAdmin: false,
+      },
+      select: {
+        id: true, sapUserId: true, name: true, role: true, unitName: true,
+        supervisor: { select: { name: true, unitName: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const rows = await Promise.all(users.map(async u => {
+      const r = await prisma.sale.aggregate({
+        where: { userId: u.sapUserId, saleDate: { gte, lt }, status: { not: 'cancelled' } },
+        _sum: { amount: true },
+        _count: { id: true },
+      });
+      return {
+        id: u.id, sapUserId: u.sapUserId, name: u.name, role: u.role,
+        unidad: u.unitName ?? u.supervisor?.unitName ?? u.supervisor?.name ?? '—',
+        ventas: Number(r._sum.amount ?? 0),
+        pedidos: r._count.id,
+      };
+    }));
+
+    res.json({ month, year, consultoras: rows });
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }

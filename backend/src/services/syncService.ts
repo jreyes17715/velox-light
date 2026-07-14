@@ -7,7 +7,35 @@ import {
   fetchAllOrders,
   fetchCreditNotesSince,
   fetchAllCreditNotes,
+  fetchSection1ItemCodes,
+  SapOrder,
 } from './sapService';
+import { ONLY_SECTION_1_PRODUCTS } from '../utils/constants';
+
+const ITBIS = 1.18;
+
+// Calcula el monto de "produccion" de una orden.
+// Confirmado con el contacto de SAP: la produccion real solo cuenta articulos de
+// "Seccion 1" (tabla OITM, QryGroup1 = 'Y' -- expuesto como Properties1 en el
+// Service Layer). Se suman los LineTotal (netos, sin ITBIS) de esas lineas y se
+// multiplica por 1.18 para obtener el equivalente bruto, consistente con el
+// resto del sistema (donde "neta" = bruta / ITBIS).
+function calcOrderAmount(order: SapOrder, section1Codes: Set<string>): number {
+  if (!ONLY_SECTION_1_PRODUCTS) return order.DocTotal;
+
+  const lines = order.DocumentLines ?? [];
+  if (lines.length === 0) {
+    // SAP no devolvio lineas -- fallback seguro al total completo en vez de
+    // perder la venta silenciosamente.
+    return order.DocTotal;
+  }
+
+  const seccion1Lines = lines.filter(l => section1Codes.has(l.ItemCode));
+  if (seccion1Lines.length === 0) return 0; // ningun articulo de Seccion 1 en esta orden
+
+  const sumNeta = seccion1Lines.reduce((s, l) => s + (l.LineTotal ?? 0), 0);
+  return sumNeta * ITBIS;
+}
 
 // ─── Sync de usuarios (BusinessPartners + jerarquía automática) ──────────────
 export async function syncUsers(): Promise<{ created: number; updated: number; supervisorsAssigned: number; inciadorasAssigned: number }> {
@@ -154,6 +182,42 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
 
     logger.info(`SYNC: ${supervisorsAssigned} jerarquías asignadas`);
 
+    // 5b. Asegurar registro DIQ para usuarios marcados como DIQ en SAP (U_DIQ = 'S').
+    //     El role='diq' ya se asigna arriba, pero sin una fila en la tabla DIQ no hay
+    //     fecha de inicio ni metas que trackear -- se crea automaticamente si no existe.
+    let diqsAutoCreados = 0;
+    for (const bp of partners) {
+      const isIniciadoraBp = inciadoraCardCodes.has(bp.CardCode);
+      const isDiqBp = isIniciadoraBp && (bp.U_DIQ === 'S');
+      if (!isDiqBp) continue;
+
+      const diqUser = await prisma.user.findUnique({
+        where: { sapUserId: bp.CardCode },
+        select: { id: true, supervisorId: true },
+      });
+      if (!diqUser) continue;
+
+      const existingDiq = await prisma.dIQ.findUnique({ where: { userId: diqUser.id } });
+      if (existingDiq) continue; // ya tiene proceso DIQ registrado, no tocar fechas/metas
+
+      const startDate = new Date(); startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(startDate); endDate.setMonth(endDate.getMonth() + 3);
+
+      await prisma.dIQ.create({
+        data: {
+          userId: diqUser.id,
+          registeredById: diqUser.supervisorId ?? diqUser.id,
+          startDate,
+          endDate,
+          notes: 'Auto-creado por sync SAP (U_DIQ=S)',
+        },
+      });
+      diqsAutoCreados++;
+    }
+    if (diqsAutoCreados > 0) {
+      logger.info(`SYNC: ${diqsAutoCreados} registros DIQ auto-creados desde SAP`);
+    }
+
     // 6. Asignar inciadoraId: U_CodIni apunta al CardCode de quien reclutó a esta persona.
     //    Puede ser distinto a la directora de su unidad (relación de reclutamiento personal).
 
@@ -213,6 +277,10 @@ export async function syncSales(fullSync = false): Promise<{ upserted: number; s
   let skipped = 0;
 
   try {
+    // Clasificacion de articulos Seccion 1 (produccion real) -- se trae UNA vez
+    // por corrida de sync, no por orden, para no golpear SAP innecesariamente.
+    const section1Codes = ONLY_SECTION_1_PRODUCTS ? await fetchSection1ItemCodes() : new Set<string>();
+
     const orders = fullSync
       ? await fetchAllOrders()
       : await fetchOrdersSince(new Date(Date.now() - 20 * 60 * 1000));
@@ -232,12 +300,14 @@ export async function syncSales(fullSync = false): Promise<{ upserted: number; s
       if (order.Cancelled === 'Y') status = 'cancelled';
       else if (order.DocumentStatus === 'O') status = 'pending';
 
+      const amount = calcOrderAmount(order, section1Codes);
+
       await prisma.sale.upsert({
         where: { sapOrderId: String(order.DocEntry) },
         create: {
           sapOrderId: String(order.DocEntry),
           userId: order.CardCode,
-          amount: order.DocTotal,
+          amount,
           currency: 'DOP',
           saleDate: new Date(order.DocDate),
           status,
@@ -246,7 +316,7 @@ export async function syncSales(fullSync = false): Promise<{ upserted: number; s
           syncedAt: new Date(),
         },
         update: {
-          amount: order.DocTotal,
+          amount,
           status,
           saleDate: new Date(order.DocDate),
           syncedAt: new Date(),

@@ -374,7 +374,7 @@ function ConsultoraDashboard() {
 
         {ov && !loading && (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <KpiCard icon="fa-solid fa-bolt" iconBg="bg-yellow-100" iconColor="text-yellow-600"
                 label="Ventas del Dia" value={fmt(ov.todaySales)}
                 compareLabel="vs. ayer" delta={deltaPct(ov.todaySales, ov.yesterdaySales)} />
@@ -477,7 +477,7 @@ function DirectoraDashboard() {
         {ov && !loading && (
           <>
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <KpiCard icon="fa-solid fa-bolt" iconBg="bg-yellow-100" iconColor="text-yellow-600"
                 label="Ventas del Dia" value={fmt(ov.todaySales)}
                 compareLabel="vs. ayer" delta={deltaPct(ov.todaySales, ov.yesterdaySales)} />
@@ -519,7 +519,7 @@ function DirectoraDashboard() {
                   <Termometro produccion={ov.groupTotalSales} meta={ov.groupTargetAmount} month={month} year={year} label="Termometro de Grupo" />
                   <div className="lg:col-span-3 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Resumen del Grupo - {MONTHS[month - 1]} {year}</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       {[
                         { label: 'Produccion Grupo', value: fmt(ov.groupTotalSales), color: 'text-pink-700' },
                         { label: 'Meta del Grupo',   value: ov.groupTargetAmount > 0 ? fmt(ov.groupTargetAmount) : 'Sin meta', color: 'text-gray-900' },
@@ -543,7 +543,7 @@ function DirectoraDashboard() {
             {/* Vista Personal */}
             {tab === 'personal' && (
               <>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <KpiCard icon="fa-solid fa-bolt" iconBg="bg-yellow-100" iconColor="text-yellow-600"
                     label="Mis Ventas Hoy" value={fmt(ov.todaySales)}
                     compareLabel="vs. ayer" delta={deltaPct(ov.todaySales, ov.yesterdaySales)} />

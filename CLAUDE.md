@@ -1274,6 +1274,13 @@ El 18% es el ITBIS (IVA dominicano). Todas las comisiones se calculan sobre el m
 ⬜ Confirmar umbrales superiores comisión descendientes (5+ = 4.5%, ¿hay más tiers?)
 ```
 
+### **⚠️ REGLA VIGENTE — NO TOCAR COMISIONES (fase actual)**
+
+🚫 En la fase actual (ajuste del cálculo de producción/Sale.amount con filtro de descuento), **no se modifica la lógica de comisiones** (Tipo A, B, C) bajo ninguna circunstancia, aunque los montos de "Comisión Est." que aparecen junto a producción se vean raros o inconsistentes.
+- El campo "Comisión Est." que aparece en tablas de Ventas/Producción es solo informativo y depende de `compraBruta`/`compraNeta`, no es el motor de comisiones real.
+- Cualquier cambio a la fórmula, tasas o umbrales de comisión requiere confirmación explícita de Padrino primero.
+- El foco actual es exclusivamente: que `Sale.amount` (producción) refleje correctamente el filtro de productos con descuento. Ver sección "ESTRUCTURA DE COMISIONES" más arriba para la lógica real de comisiones (sin tocar).
+
 ### **PROBLEMA CONOCIDO — TRUNCACIÓN DE ARCHIVOS**
 
 ⚠️ El Write tool de Claude trunca archivos grandes en disco (el archivo queda cortado a ~220 líneas).

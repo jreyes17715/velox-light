@@ -60,11 +60,16 @@ interface IniciadoraRow {
   reclutas: ReclutaRow[];
 }
 interface IniciadorasResponse { month: number; year: number; iniciadoras: IniciadoraRow[]; }
+interface ConsultoraRow {
+  id: string; sapUserId: string; name: string; role: string;
+  unidad: string; ventas: number; pedidos: number;
+}
+interface ConsultorasResponse { month: number; year: number; consultoras: ConsultoraRow[]; }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
-  return new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 function pct(rate: number) { return `${(rate * 100).toFixed(0)}%`; }
 function deltaPct(current: number, prev: number): number {
@@ -357,7 +362,7 @@ function BuscarPersona({ month, year }: { month: number; year: number }) {
             </div>
             <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600"><I icon="fa-solid fa-xmark" className="text-lg" /></button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               { label: 'Ventas del Mes', value: fmt(selected.mesActual.ventas) },
               { label: 'Pedidos', value: String(selected.mesActual.pedidos) },
@@ -686,7 +691,7 @@ function MetasPanel({ month, year }: { month: number; year: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 uppercase font-semibold">Total Metas</p><p className="text-2xl font-bold text-gray-900 mt-1">{fmt(totalMetas)}</p></div>
         <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 uppercase font-semibold">Grupos con Meta</p><p className="text-2xl font-bold text-gray-900 mt-1">{gruposConMeta} <span className="text-sm font-normal text-gray-400">/ {grupos.length}</span></p></div>
         <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 uppercase font-semibold">Periodo</p><p className="text-2xl font-bold text-gray-900 mt-1">{MONTHS[month - 1]} {year}</p></div>
@@ -834,7 +839,7 @@ function IniciadorasPanel({ month, year }: { month: number; year: number }) {
   return (
     <div className="space-y-4">
       {/* KPI resumen */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Iniciadoras',         value: totalIniciadoras.toString(),   icon: 'fa-solid fa-star',           bg: 'bg-purple-50',  color: 'text-purple-600' },
           { label: 'Con reclutas',         value: totalConReclutas.toString(),   icon: 'fa-solid fa-users',          bg: 'bg-pink-50',    color: 'text-pink-600'   },
@@ -943,10 +948,123 @@ function IniciadorasPanel({ month, year }: { month: number; year: number }) {
   );
 }
 
+// ─── Panel: Consultoras ───────────────────────────────────────────────────────
+
+function ConsultorasPanel({ month, year }: { month: number; year: number }) {
+  const navigate = useNavigate();
+  const [data, setData]       = useState<ConsultorasResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch]   = useState('');
+  const [roleFilter, setRoleFilter] = useState<'todas' | 'consultora' | 'iniciadora' | 'diq'>('todas');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get<ConsultorasResponse>('/superadmin/consultoras', { params: { month, year } });
+      setData(r.data);
+    } finally { setLoading(false); }
+  }, [month, year]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <div className="py-16 text-center text-gray-400"><I icon="fa-solid fa-spinner fa-spin" className="text-3xl" /></div>;
+  if (!data) return null;
+
+  const roleBadge = (role: string) => {
+    if (role === 'diq')        return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">DIQ</span>;
+    if (role === 'iniciadora') return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">Iniciadora</span>;
+    return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">Consultora</span>;
+  };
+
+  const filtered = data.consultoras.filter(c =>
+    (roleFilter === 'todas' || c.role === roleFilter) &&
+    (c.name.toLowerCase().includes(search.toLowerCase()) || c.sapUserId.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const ROLE_TABS: { key: typeof roleFilter; label: string }[] = [
+    { key: 'todas',      label: 'Todas'       },
+    { key: 'consultora', label: 'Consultoras' },
+    { key: 'iniciadora', label: 'Iniciadoras' },
+    { key: 'diq',        label: 'DIQ'         },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por nombre o codigo SAP..."
+            className="w-full border border-gray-300 rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300" />
+          <I icon="fa-solid fa-magnifying-glass" className="absolute right-3 top-3.5 text-gray-400 text-sm" />
+        </div>
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+          {ROLE_TABS.map(t => (
+            <button key={t.key} onClick={() => setRoleFilter(t.key)}
+              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${roleFilter === t.key ? 'bg-white shadow text-pink-700' : 'text-gray-500 hover:text-gray-700'}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <p className="font-semibold text-gray-800 text-sm"><I icon="fa-solid fa-users" className="mr-2 text-pink-500" />Consultoras</p>
+          <span className="text-xs text-gray-400">{filtered.length} de {data.consultoras.length}</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+              <tr>
+                <th className="px-4 py-3 text-center w-8">#</th>
+                <th className="px-4 py-3 text-left">Nombre</th>
+                <th className="px-4 py-3 text-left">Rol</th>
+                <th className="px-4 py-3 text-left">Unidad</th>
+                <th className="px-4 py-3 text-right">Ventas del mes</th>
+                <th className="px-4 py-3 text-center">Perfil</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filtered.map((c, i) => (
+                <tr key={c.id} className={`hover:bg-gray-50 transition-colors ${c.ventas === 0 ? 'opacity-50' : ''}`}>
+                  <td className="px-4 py-3 text-center text-xs text-gray-400">{i + 1}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 bg-pink-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-pink-600 text-xs font-bold">{c.name.charAt(0)}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-900">{c.name}</span>
+                        <p className="text-xs text-gray-400">{c.sapUserId}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">{roleBadge(c.role)}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{c.unidad}</td>
+                  <td className="px-4 py-3 text-right font-medium text-gray-700">{c.ventas > 0 ? fmt(c.ventas) : '-'}</td>
+                  <td className="px-4 py-3 text-center">
+                    <button onClick={() => navigate(`/perfil/${c.id}`)}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium bg-pink-50 text-pink-700 hover:bg-pink-100 px-3 py-1.5 rounded-lg transition-colors">
+                      <I icon="fa-solid fa-id-badge" className="text-xs" />Ver perfil
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">Sin resultados</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Pagina principal ─────────────────────────────────────────────────────────
 
-type SuperAdminTab = 'ranking' | 'directoras' | 'metas' | 'persona' | 'unidad' | 'iniciadoras';
-const VALID_TABS: SuperAdminTab[] = ['ranking', 'directoras', 'metas', 'persona', 'unidad', 'iniciadoras'];
+type SuperAdminTab = 'ranking' | 'directoras' | 'metas' | 'persona' | 'unidad' | 'iniciadoras' | 'consultoras';
+const VALID_TABS: SuperAdminTab[] = ['ranking', 'directoras', 'metas', 'persona', 'unidad', 'iniciadoras', 'consultoras'];
 function parseTab(raw: string | null): SuperAdminTab {
   return VALID_TABS.includes(raw as SuperAdminTab) ? (raw as SuperAdminTab) : 'ranking';
 }
@@ -991,6 +1109,7 @@ export default function SuperAdminPage() {
     { key: 'iniciadoras', icon: 'fa-solid fa-star',             label: 'Iniciadoras'      },
     { key: 'persona',     icon: 'fa-solid fa-magnifying-glass', label: 'Buscar Persona'   },
     { key: 'unidad',      icon: 'fa-solid fa-building',         label: 'Ver Unidad'       },
+    { key: 'consultoras', icon: 'fa-solid fa-users',            label: 'Consultoras'      },
   ];
 
   const r = data?.resumen;
@@ -1021,7 +1140,7 @@ export default function SuperAdminPage() {
         {loading && <div className="text-center py-8 text-gray-400"><I icon="fa-solid fa-spinner fa-spin" className="text-3xl" /></div>}
         {r && (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <KpiCard
                 icon="fa-solid fa-bolt" iconBg="bg-yellow-100" iconColor="text-yellow-600"
                 label="Ventas del Dia" value={fmt(r.todaySales)}
@@ -1061,7 +1180,7 @@ export default function SuperAdminPage() {
                   </div>
                   <div className="lg:col-span-3 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Resumen Global - {MONTHS[month - 1]} {year}</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       {[
                         { label: 'Produccion Bruta', value: fmt(r.totalBruta), color: 'text-pink-700' },
                         { label: 'Produccion Neta',  value: fmt(r.totalNeta),  color: 'text-gray-900' },
@@ -1142,6 +1261,7 @@ export default function SuperAdminPage() {
         {tab === 'iniciadoras'  && <IniciadorasPanel month={month} year={year} />}
         {tab === 'persona'      && <BuscarPersona month={month} year={year} />}
         {tab === 'unidad'       && data && <VerUnidad month={month} year={year} unidades={data.unidades} />}
+        {tab === 'consultoras'  && <ConsultorasPanel month={month} year={year} />}
 
       </div>
     </Layout>
