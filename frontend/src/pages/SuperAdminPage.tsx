@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout/Layout';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie,
 } from 'recharts';
 import api from '../utils/api';
 
@@ -18,11 +17,12 @@ interface Resumen {
   totalBruta: number; totalNeta: number; totalComision: number;
   totalPedidos: number; unidadesCount: number;
   todaySales: number; yesterdaySales: number; lastMonthBruta: number;
+  todaySalesNeta: number; yesterdaySalesNeta: number; lastMonthNeta: number;
   consultorasActivas: number; lastMonthConsultorasActivas: number;
   unidadesActivas: number; lastMonthUnidadesActivas: number;
   totalMetas: number;
 }
-interface RankingPersona { sapUserId: string; name: string; role: string; ventas: number; }
+interface RankingPersona { sapUserId: string; name: string; role: string; ventas: number; ventasNeta: number; }
 interface OverviewResponse { month: number; year: number; resumen: Resumen; unidades: UnidadRow[]; rankingPersonas: RankingPersona[]; }
 
 interface SearchResult {
@@ -124,29 +124,28 @@ function AvanceGauge({ produccion, meta }: { produccion: number; meta: number })
   const avance = meta > 0 ? Math.min((produccion / meta) * 100, 100) : 0;
   const faltante = meta > produccion ? meta - produccion : 0;
 
-  // Semi-circle gauge via PieChart
-  const filled = avance;
-  const empty  = 100 - filled;
+  // Semicirculo dibujado con un <path> de SVG (en vez de recortar un PieChart
+  // con overflow-hidden + margin negativo, que se cortaba arriba en algunos
+  // navegadores/zooms). El viewBox incluye margen de sobra arriba y a los
+  // lados para que el arco nunca quede pegado al borde del contenedor.
+  const R = 80;
+  const CX = 100, CY = 92;
+  const arcPath = `M ${CX - R},${CY} A ${R},${R} 0 0 1 ${CX + R},${CY}`;
+  const circumference = Math.PI * R;
+  const dashOffset = circumference - (avance / 100) * circumference;
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Avance General de Metas</p>
       <div className="flex flex-col items-center">
-        <div className="relative w-40 h-20 overflow-hidden">
-          <PieChart width={160} height={160} style={{ marginTop: -80 }}>
-            <Pie
-              data={[{ value: filled }, { value: empty }]}
-              cx={80} cy={130}
-              startAngle={180} endAngle={0}
-              innerRadius={55} outerRadius={75}
-              dataKey="value"
-              strokeWidth={0}
-            >
-              <Cell fill="#ec4899" />
-              <Cell fill="#f3f4f6" />
-            </Pie>
-          </PieChart>
-          <div className="absolute inset-0 flex items-end justify-center pb-1">
+        <div className="relative w-full max-w-[200px]">
+          <svg viewBox="0 0 200 110" className="w-full">
+            <path d={arcPath} fill="none" stroke="#f3f4f6" strokeWidth="16" strokeLinecap="round" />
+            <path d={arcPath} fill="none" stroke="#ec4899" strokeWidth="16" strokeLinecap="round"
+              strokeDasharray={circumference} strokeDashoffset={dashOffset}
+              style={{ transition: 'stroke-dashoffset 0.7s ease' }} />
+          </svg>
+          <div className="absolute inset-x-0 bottom-1 flex items-center justify-center">
             <p className="text-2xl font-bold text-gray-900">{avance.toFixed(2)}%</p>
           </div>
         </div>

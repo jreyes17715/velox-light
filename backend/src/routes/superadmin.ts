@@ -41,8 +41,11 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
     });
 
     const unidades = await Promise.all(directoras.map(async (dir) => {
+      // id: { not: dir.id } -- salvaguarda: si por algun dato viejo de sync la
+      // directora quedo asignada como su propia supervisora, no se cuenta a
+      // si misma dos veces (una explicita + una como "miembro").
       const miembros = await prisma.user.findMany({
-        where: { supervisorId: dir.id },
+        where: { supervisorId: dir.id, id: { not: dir.id } },
         select: { sapUserId: true },
       });
       const sapIds = [dir.sapUserId, ...miembros.map(m => m.sapUserId)];
@@ -92,6 +95,8 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
     ]);
     const todaySales     = Number(todayAgg._sum.amount ?? 0);
     const yesterdaySales = Number(yestAgg._sum.amount  ?? 0);
+    const todaySalesNeta     = todaySales / ITBIS;
+    const yesterdaySalesNeta = yesterdaySales / ITBIS;
 
     const prevMonth = month === 1 ? 12 : month - 1;
     const prevYear  = month === 1 ? year - 1 : year;
@@ -102,6 +107,7 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
       _sum: { amount: true },
     });
     const lastMonthBruta = Number(prevMonthAgg._sum.amount ?? 0);
+    const lastMonthNeta  = lastMonthBruta / ITBIS;
 
     const activeUserIds = await prisma.sale.findMany({
       where: { saleDate: { gte, lt }, status: { not: 'cancelled' } },
@@ -144,7 +150,8 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
     const rankingPersonas = topSalesGroups
       .map(s => {
         const u = topUsers.find(u => u.sapUserId === s.userId);
-        return { sapUserId: s.userId, name: u?.name ?? s.userId, role: u?.role ?? '', ventas: Number(s._sum.amount ?? 0) };
+        const ventas = Number(s._sum.amount ?? 0);
+        return { sapUserId: s.userId, name: u?.name ?? s.userId, role: u?.role ?? '', ventas, ventasNeta: ventas / ITBIS };
       })
       .slice(0, 5);
 
@@ -160,6 +167,7 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
         totalBruta, totalNeta, totalComision, totalPedidos,
         unidadesCount: unidades.length,
         todaySales, yesterdaySales, lastMonthBruta,
+        todaySalesNeta, yesterdaySalesNeta, lastMonthNeta,
         consultorasActivas, lastMonthConsultorasActivas,
         unidadesActivas, lastMonthUnidadesActivas: prevUnidadesActivas,
         totalMetas,
@@ -292,8 +300,11 @@ router.get('/unit/:directoraId', authenticateJWT, async (req: AuthRequest, res: 
     });
     if (!directora) { res.status(404).json({ error: 'Directora no encontrada' }); return; }
 
+    // id: { not: directora.id } -- salvaguarda: evita que la directora aparezca
+    // duplicada (una vez como directora, otra como "miembro" de si misma) si
+    // algun dato viejo de sync la dejo con supervisorId = su propio id.
     const miembros = await prisma.user.findMany({
-      where: { supervisorId: directora.id },
+      where: { supervisorId: directora.id, id: { not: directora.id } },
       select: { id: true, sapUserId: true, name: true },
       orderBy: { name: 'asc' },
     });

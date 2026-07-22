@@ -163,6 +163,14 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
       if (!bp.GroupCode) continue;
       const groupInfo = groupMap.get(bp.GroupCode);
       if (!groupInfo) continue;
+      // Una directora casi siempre tambien es "miembro" de su propio grupo SAP
+      // (GroupCode apunta a su propia unidad). Sin este filtro, el bloque de
+      // abajo la asignaria como supervisora de si misma (supervisorId = su
+      // propio id), lo que la hace aparecer duplicada como "miembro" de su
+      // propia unidad en /unit/:directoraId y en cualquier vista que combine
+      // [dir.sapUserId, ...miembros] (bug detectado 21-jul-2026, ver Cristina
+      // Yosaira Baez Perez apareciendo 2 veces en Ver Unidad).
+      if (bp.CardCode === groupInfo.directoraCardCode) continue;
 
       const [user, directora] = await Promise.all([
         prisma.user.findUnique({ where: { sapUserId: bp.CardCode }, select: { id: true, supervisorId: true } }),

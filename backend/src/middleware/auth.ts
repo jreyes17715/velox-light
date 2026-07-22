@@ -19,8 +19,12 @@ export async function authenticateJWT(req: AuthRequest, res: Response, next: Nex
     let decoded: JwtPayload;
     try {
       decoded = jwt.verify(token, secret) as JwtPayload;
-    } catch (err) {
-      logger.debug('JWT verification failed:', err);
+    } catch (err: any) {
+      // warn (no debug) para que quede visible en logs de produccion --
+      // esto se estaba silenciando por completo antes (logger.debug no
+      // imprime nada cuando NODE_ENV=production), lo que hacia imposible
+      // diagnosticar por que ciertos usuarios no podian entrar.
+      logger.warn(`JWT verification failed: ${err?.name} - ${err?.message} (token prefix: ${token.slice(0, 12)}...)`);
       res.status(403).json({ error: 'Invalid token' });
       return;
     }
@@ -29,18 +33,25 @@ export async function authenticateJWT(req: AuthRequest, res: Response, next: Nex
     const sapUserId = decoded.sapUserId || decoded.userId || String(decoded.data?.user?.id || '');
 
     if (!sapUserId) {
-      logger.debug('No sapUserId found in token payload:', decoded);
+      logger.warn(`No sapUserId found in token payload. Keys: ${Object.keys(decoded).join(', ')}`);
       res.status(403).json({ error: 'Invalid token payload' });
       return;
     }
 
-    const user = await prisma.user.findUnique({
-      where: { sapUserId },
+    // findFirst + mode: 'insensitive' -- el token de WordPress a veces trae el
+    // sapUserId en minusculas (ej: "yr-00001") mientras que en la BD esta
+    // guardado tal cual lo entrega SAP, en mayusculas (ej: "YR-00001"). Una
+    // busqueda exacta (findUnique) no los encontraba y tiraba 403 "User not
+    // found" aunque el usuario si existiera (bug reportado 21-jul-2026, caso
+    // YISSEL RUIZ PIMENTEL / YR-00001). Mismo criterio que ya usaba el login
+    // con contraseña master en auth.ts.
+    const user = await prisma.user.findFirst({
+      where: { sapUserId: { equals: sapUserId, mode: 'insensitive' } },
       include: { subordinates: true },
     });
 
     if (!user) {
-      logger.debug(`User not found for sapUserId: ${sapUserId}`);
+      logger.warn(`User not found for sapUserId: ${sapUserId}`);
       res.status(403).json({ error: 'User not found' });
       return;
     }

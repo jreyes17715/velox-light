@@ -7,7 +7,7 @@ import { useAuthStore } from '../store/authStore';
 import api from '../utils/api';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-  LineChart, Line, CartesianGrid, PieChart, Pie,
+  LineChart, Line, CartesianGrid,
 } from 'recharts';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -91,23 +91,29 @@ function KpiCard({ icon, iconBg, iconColor, label, value, compareLabel, delta }:
 function AvanceGauge({ produccion, meta, label = 'Avance de Meta' }: { produccion: number; meta: number; label?: string }) {
   const avance   = meta > 0 ? Math.min((produccion / meta) * 100, 100) : 0;
   const faltante = meta > produccion ? meta - produccion : 0;
+  const color    = avance >= 100 ? '#16a34a' : avance >= 70 ? '#ec4899' : '#f97316';
+
+  // Semicirculo dibujado con un <path> de SVG (en vez de recortar un PieChart
+  // con overflow-hidden + margin negativo, que se cortaba arriba en algunos
+  // navegadores/zooms -- mismo fix aplicado en SuperAdminPage.tsx).
+  const R = 80;
+  const CX = 100, CY = 92;
+  const arcPath = `M ${CX - R},${CY} A ${R},${R} 0 0 1 ${CX + R},${CY}`;
+  const circumference = Math.PI * R;
+  const dashOffset = circumference - (avance / 100) * circumference;
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{label}</p>
       <div className="flex flex-col items-center">
-        <div className="relative w-40 h-20 overflow-hidden">
-          <PieChart width={160} height={160} style={{ marginTop: -80 }}>
-            <Pie
-              data={[{ value: avance }, { value: 100 - avance }]}
-              cx={80} cy={130} startAngle={180} endAngle={0}
-              innerRadius={55} outerRadius={75} dataKey="value" strokeWidth={0}
-            >
-              <Cell fill={avance >= 100 ? '#16a34a' : avance >= 70 ? '#ec4899' : '#f97316'} />
-              <Cell fill="#f3f4f6" />
-            </Pie>
-          </PieChart>
-          <div className="absolute inset-0 flex items-end justify-center pb-1">
+        <div className="relative w-full max-w-[200px]">
+          <svg viewBox="0 0 200 110" className="w-full">
+            <path d={arcPath} fill="none" stroke="#f3f4f6" strokeWidth="16" strokeLinecap="round" />
+            <path d={arcPath} fill="none" stroke={color} strokeWidth="16" strokeLinecap="round"
+              strokeDasharray={circumference} strokeDashoffset={dashOffset}
+              style={{ transition: 'stroke-dashoffset 0.7s ease' }} />
+          </svg>
+          <div className="absolute inset-x-0 bottom-1 flex items-center justify-center">
             <p className="text-2xl font-bold text-gray-900">{avance.toFixed(1)}%</p>
           </div>
         </div>

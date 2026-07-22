@@ -7,6 +7,7 @@ const ALL_NAV_ITEMS: { to: string; label: string; icon: string; roles: string[] 
   { to: '/dashboard',        label: 'Dashboard General',   icon: 'grid',    roles: ['directora', 'consultora', 'diq', 'iniciadora', 'superadmin'] },
   { to: '/sales',            label: 'Ventas y Produccion', icon: 'chart',   roles: ['directora', 'consultora', 'diq', 'iniciadora', 'superadmin'] },
   { to: '/consultoras',      label: 'Consultoras',          icon: 'group',   roles: ['directora', 'diq', 'iniciadora'] },
+  { to: '/llave-rosa',       label: 'Llave Rosa',           icon: 'car',     roles: ['directora', 'superadmin'] },
   { to: '/metas',            label: 'Metas',                icon: 'target',  roles: ['directora', 'diq', 'iniciadora'] },
   { to: '/superadmin/metas', label: 'Metas',                icon: 'target',  roles: ['superadmin'] },
   { to: '/perfil',           label: 'Mi Perfil',            icon: 'user',    roles: ['directora', 'consultora', 'diq', 'iniciadora'] },
@@ -23,6 +24,7 @@ const FA_ICONS: Record<string, string> = {
   user:     'fa-regular fa-circle-user',
   settings: 'fa-solid fa-gear',
   crown:    'fa-solid fa-crown',
+  car:      'fa-solid fa-car-side',
   logout:   'fa-solid fa-right-from-bracket',
 };
 

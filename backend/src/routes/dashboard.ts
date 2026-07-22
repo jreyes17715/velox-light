@@ -69,7 +69,11 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
     const achievementPercent = targetAmount > 0 ? (totalSales / targetAmount) * 100 : 0;
 
     // ── datos de grupo (subordinadas) ─────────────────────────────────────────
-    const subs = user.subordinates;
+    // .filter(...) -- salvaguarda: si algun dato viejo de sync dejo a la
+    // directora con supervisorId = su propio id, no se cuenta a si misma
+    // dentro de "su grupo" (duplicaria su produccion personal y apareceria
+    // en su propio ranking de consultoras). Ver fix de raiz en syncService.ts.
+    const subs = user.subordinates.filter(s => s.id !== user.id);
     const subIds = subs.map(s => s.sapUserId);
 
     let groupTotalSales   = 0;
@@ -180,7 +184,7 @@ router.get('/subordinates', authenticateJWT, async (req: AuthRequest, res: Respo
     const startDate = new Date(year, month - 1, 1);
     const endDate   = new Date(year, month, 0, 23, 59, 59);
 
-    const subordinates = user.subordinates;
+    const subordinates = user.subordinates.filter(s => s.id !== user.id); // salvaguarda self-supervision
     const total        = subordinates.length;
     const paginated    = subordinates.slice((page - 1) * limit, page * limit);
 
@@ -228,7 +232,7 @@ router.get('/metas', authenticateJWT, async (req: AuthRequest, res: Response) =>
     });
     const unitGoal = Number(unitTargetRow?.targetAmount ?? 0);
 
-    const subordinates = user.subordinates ?? [];
+    const subordinates = (user.subordinates ?? []).filter(s => s.id !== user.id); // salvaguarda self-supervision
     const allMembers = [
       { id: user.id, sapUserId: user.sapUserId, name: user.name, role: user.role, isDirectora: true },
       ...subordinates.map(s => ({ id: s.id, sapUserId: s.sapUserId, name: s.name, role: 'consultora', isDirectora: false })),
