@@ -1312,11 +1312,15 @@ BACKEND (Railway):
   cd backend/
   railway up
 
-FRONTEND (SiteGround):
+FRONTEND (SiteGround, dominio real de producción: visionrosa.com):
   cd frontend/
   VITE_API_URL=https://alert-eagerness-production-8cbb.up.railway.app/api npm run build
-  # Luego subir frontend/dist/ por FTP/cPanel a comisiones.marykay.do
-  # Archivos: index.html + assets/index-[hash].js + assets/index-[hash].css
+  # El deploy de frontend SIEMPRE es manual por FTP -- Padrino sube frontend/dist/
+  # el mismo por FTP a SiteGround. Claude solo hace el build local, NUNCA intenta
+  # subir por FTP ni asume que el deploy quedó completo hasta que Padrino confirme.
+  # Archivos a subir: index.html + assets/index-[hash].js + assets/index-[hash].css
+  # NOTA: "comisiones.marykay.do" (mencionado en otras secciones de este doc) es
+  # el dominio original planeado -- el dominio real en producción es visionrosa.com.
 
 MIGRACIONES (si hay cambios en schema.prisma):
   # Opción A: en local con tunnel a Railway DB

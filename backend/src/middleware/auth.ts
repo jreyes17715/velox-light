@@ -56,8 +56,14 @@ export async function authenticateJWT(req: AuthRequest, res: Response, next: Nex
       return;
     }
 
-    // Para iniciadora: su grupo son sus reclutas (inciadoraId), no supervisorId
-    if (user.role === 'iniciadora') {
+    // Para iniciadora (y diq, que es una iniciadora en proceso -- ver syncService.ts
+    // "role = isDirectora ? 'directora' : isDiq ? 'diq' : isIniciadora ? ...", un
+    // usuario 'diq' SIEMPRE es tambien iniciadora): su grupo son sus reclutas
+    // (inciadoraId), no supervisorId. Sin esto, una directora "en proceso DIQ"
+    // (sin grupo SAP propio todavia) veia "Mi Unidad" completamente en 0 aunque
+    // si tuviera ventas personales y reclutas reales (bug reportado 23-jul-2026,
+    // caso Rosa Hilda Hidalgo Urbaez).
+    if (user.role === 'iniciadora' || user.role === 'diq') {
       const reclutas = await prisma.user.findMany({
         where: { inciadoraId: user.id },
         orderBy: { name: 'asc' },

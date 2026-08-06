@@ -26,6 +26,7 @@ interface LlaveRosaStatus {
   name: string;
   unitName: string | null;
   nivel: Nivel;
+  nivelSugerido: Nivel;
   vehiculo: string;
   fase: Fase;
   quarterLabel: string;
@@ -239,26 +240,35 @@ function MiLlaveRosa() {
   const [error, setError]     = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<'acumulado' | 'mensual'>('acumulado');
   const [showWonModal, setShowWonModal] = useState(false);
+  // null = nivel real/sugerido (sin override). 'A' | 'B' = previsualizando esa
+  // meta -- el backend recalcula TODA la vista (gauge, metas, monto faltante,
+  // fase, racha) como si esa fuera la meta objetivo. Ver toggle "Premios por Nivel".
+  const [nivelPreview, setNivelPreview] = useState<Nivel | null>(null);
+  const firstLoad = useRef(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const [meRes, cfgRes] = await Promise.all([
-          api.get<LlaveRosaStatus>('/llaverosa/me'),
-          api.get<LlaveRosaConfig>('/llaverosa/config'),
-        ]);
+        const params = nivelPreview ? { nivel: nivelPreview } : {};
+        const meRes = await api.get<LlaveRosaStatus>('/llaverosa/me', { params });
         setData(meRes.data);
-        setConfig(cfgRes.data);
 
-        const trimestral = meRes.data.metas.trimestral;
-        if (trimestral.actual >= trimestral.meta) {
-          // Solo se muestra automaticamente una vez por trimestre por directora
-          // (se guarda en localStorage). El boton "Ver mi logro" la deja reabrir
-          // cuando quiera.
-          const key = `llaveRosa_won_${meRes.data.sapUserId}_${meRes.data.quarterLabel}`;
-          if (!localStorage.getItem(key)) {
-            localStorage.setItem(key, '1');
-            setShowWonModal(true);
+        if (firstLoad.current) {
+          firstLoad.current = false;
+          const cfgRes = await api.get<LlaveRosaConfig>('/llaverosa/config');
+          setConfig(cfgRes.data);
+
+          const trimestral = meRes.data.metas.trimestral;
+          if (trimestral.actual >= trimestral.meta) {
+            // Solo se muestra automaticamente una vez por trimestre por directora
+            // (se guarda en localStorage). El boton "Ver mi logro" la deja reabrir
+            // cuando quiera. Se evalua solo en la carga inicial (nivel real), no
+            // mientras se esta previsualizando el otro nivel.
+            const key = `llaveRosa_won_${meRes.data.sapUserId}_${meRes.data.quarterLabel}`;
+            if (!localStorage.getItem(key)) {
+              localStorage.setItem(key, '1');
+              setShowWonModal(true);
+            }
           }
         }
       } catch {
@@ -267,7 +277,7 @@ function MiLlaveRosa() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [nivelPreview]);
 
   if (loading) return <div className="text-center py-20 text-gray-400"><I icon="fa-solid fa-spinner fa-spin" className="text-2xl" /></div>;
   if (error || !data) return <div className="text-center py-20 text-gray-400">{error ?? 'Sin datos disponibles.'}</div>;
@@ -295,7 +305,18 @@ function MiLlaveRosa() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="flex items-center gap-1.5 text-xs text-gray-500">
+            <span className="hidden sm:inline">Previsualizar</span>
+            <select
+              value={data.nivel}
+              onChange={e => setNivelPreview(e.target.value as Nivel)}
+              className="border border-gray-200 rounded-lg text-xs font-semibold px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200"
+            >
+              <option value="A">Meta A ({config?.vehicleNameA ?? 'Tiggo 4'})</option>
+              <option value="B">Meta B ({config?.vehicleNameB ?? 'Tiggo 7'})</option>
+            </select>
+          </label>
           {metaAlcanzadaTrimestre && (
             <button onClick={() => setShowWonModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-sm hover:opacity-90 transition-opacity">
@@ -367,9 +388,9 @@ function MiLlaveRosa() {
         </div>
       </div>
 
-      {/* Racha / Premio / Mantenimiento / Proxima Evaluacion / Monto Faltante + Premios por nivel */}
+      {/* Racha / Premio / Mantenimiento / Monto Faltante + Premios por nivel */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-md p-4">
             <div className="w-9 h-9 rounded-lg bg-rose-50 flex items-center justify-center mb-2"><I icon="fa-solid fa-fire" className="text-rose-500" /></div>
             <p className="text-[11px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Racha</p>
@@ -403,44 +424,68 @@ function MiLlaveRosa() {
             </p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 shadow-md p-4">
-            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center mb-2"><I icon="fa-solid fa-calendar-check" className="text-blue-500" /></div>
-            <p className="text-[11px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Próxima evaluación</p>
-            <p className="text-sm font-bold text-gray-900">{data.proximaEvaluacion}</p>
-            <p className="text-[11px] text-gray-400 mt-1">Inicio del próximo trimestre</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-md p-4">
             <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center mb-2"><I icon="fa-solid fa-bullseye" className="text-purple-500" /></div>
             <p className="text-[11px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Monto faltante</p>
-            <p className="text-sm font-bold text-gray-900">{fmt(data.mantenimiento.montoFaltanteTrimestral)}</p>
-            <p className="text-[11px] text-gray-400 mt-1">{data.mantenimiento.montoFaltanteTrimestral === 0 ? '¡Meta superada!' : 'para meta trimestral'}</p>
+            {data.metas.semestral ? (
+              <>
+                <p className="text-sm font-bold text-gray-900">{fmt(Math.max(data.metas.semestral.meta - data.metas.semestral.actual, 0))}</p>
+                <p className="text-[11px] text-gray-400 mt-1">{data.metas.semestral.actual >= data.metas.semestral.meta ? '¡Meta superada!' : 'para meta semestral'}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-bold text-gray-900">{fmt(0)}</p>
+                <p className="text-[11px] text-gray-400 mt-1">No aplica (en mantenimiento)</p>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Premios por nivel */}
+        {/* Premios por nivel -- toggle: clic en una tarjeta previsualiza toda
+            la vista (gauge, metas, monto faltante, fase) como si esa fuera
+            la meta objetivo. Equivalente al select de arriba. */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-md p-4">
           <p className="text-[11px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Premios por Nivel</p>
-          <p className="text-[11px] text-gray-400 mb-3">Alcanza y mantén tus metas para ganar tu auto.</p>
+          <p className="text-[11px] text-gray-400 mb-3">Toca una meta para ver qué necesitas para ganarla.</p>
           <div className="grid grid-cols-2 gap-3">
             {(['A', 'B'] as Nivel[]).map(n => {
               const img = n === 'A' ? config?.carImageA : config?.carImageB;
               const nombre = n === 'A' ? (config?.vehicleNameA ?? 'Tiggo 4') : (config?.vehicleNameB ?? 'Tiggo 7');
-              const cfgN = n === data.nivel ? data : null;
+              const activo = n === data.nivel;
+              // Las metas mostradas siempre corresponden al nivel actualmente
+              // seleccionado (data.nivel ya viene recalculado por el backend
+              // segun el override), asi que solo se muestran en la tarjeta activa.
               return (
-                <div key={n} className={`rounded-xl border p-3 text-center ${n === data.nivel ? 'border-rose-300 bg-rose-50' : 'border-gray-100'}`}>
-                  <p className={`text-xs font-bold ${n === data.nivel ? 'text-rose-700' : 'text-gray-600'}`}>Meta {n}</p>
-                  <p className={`text-[11px] font-semibold mb-1 ${n === data.nivel ? 'text-rose-500' : 'text-gray-400'}`}>{nombre}</p>
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setNivelPreview(n)}
+                  className={`rounded-xl border p-3 text-center transition-colors ${activo ? 'border-rose-300 bg-rose-50' : 'border-gray-100 hover:border-rose-200 hover:bg-rose-50/40'}`}
+                >
+                  <p className={`text-xs font-bold ${activo ? 'text-rose-700' : 'text-gray-600'}`}>Meta {n}</p>
+                  <p className={`text-[11px] font-semibold mb-1 ${activo ? 'text-rose-500' : 'text-gray-400'}`}>{nombre}</p>
                   {img
                     ? <img src={img} alt={nombre} className="w-full h-16 object-contain my-1" />
                     : <div className="w-full h-14 flex items-center justify-center text-gray-300 my-1"><I icon="fa-solid fa-car-side" className="text-3xl" /></div>}
-                  {cfgN ? (
-                    <p className="text-[10px] text-gray-500 leading-tight">{fmt(cfgN.metas.mensual.meta)} mensual<br />{fmt(cfgN.metas.trimestral.meta)} trimestral</p>
+                  {activo ? (
+                    <p className="text-[10px] text-gray-500 leading-tight">{fmt(data.metas.mensual.meta)} mensual<br />{fmt(data.metas.trimestral.meta)} trimestral</p>
                   ) : (
-                    <p className="text-[11px] text-gray-400">Otro nivel</p>
+                    <p className="text-[11px] text-gray-400">Ver esta meta</p>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
+          {data.nivel !== data.nivelSugerido && (
+            <div className="mt-3 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-2 flex items-start gap-1.5">
+              <I icon="fa-solid fa-circle-info" className="text-amber-500 text-[10px] mt-0.5" />
+              <p className="text-[10px] text-amber-700 leading-tight">
+                Estás previsualizando la Meta {data.nivel}. Tu nivel real es Meta {data.nivelSugerido}.{' '}
+                <button type="button" onClick={() => setNivelPreview(null)} className="underline font-semibold hover:text-amber-800">
+                  Volver a mi nivel
+                </button>
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

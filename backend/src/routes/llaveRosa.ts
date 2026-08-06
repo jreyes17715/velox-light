@@ -79,6 +79,7 @@ interface LlaveRosaStatus {
   name: string;
   unitName: string | null;
   nivel: Nivel;
+  nivelSugerido: Nivel; // nivel inferido real del historial, sin importar si se esta previsualizando otro
   vehiculo: string;
   fase: 'calificacion' | 'mantenimiento';
   quarterLabel: string;
@@ -171,6 +172,7 @@ function computeLlaveRosaStatus(
   oldestMonthKey: string,
   now: Date,
   premioOverride?: 'auto' | 'efectivo',
+  nivelOverride?: Nivel,
 ): LlaveRosaStatus {
   const { label: quarterLabel, proximaEvaluacion } = getQuarterInfo(now);
   const { label: semestreLabel, startMonth: semestreStartMonth } = getSemesterInfo(now);
@@ -182,7 +184,12 @@ function computeLlaveRosaStatus(
   //    Si no hay trimestre completo dentro del rango consultado, usa el
   //    trimestre en curso (offset 0) como mejor estimado disponible.
   const nivelBase = quarterFullyInRange(-1) ? quarterNeta(-1) : quarterNeta(0);
-  const nivel: Nivel = nivelBase >= NIVELES.B.calificacion.trimestral ? 'B' : 'A';
+  const nivelSugerido: Nivel = nivelBase >= NIVELES.B.calificacion.trimestral ? 'B' : 'A';
+  // nivelOverride permite "previsualizar" la vista completa como si estuviera
+  // apuntando al otro nivel (ej: una directora en Nivel A viendo que le
+  // faltaria para el Nivel B). Todo el resto del calculo (metas, fase, racha)
+  // usa el nivel elegido, no necesariamente el sugerido/real.
+  const nivel: Nivel = nivelOverride ?? nivelSugerido;
   const cfg = NIVELES[nivel];
 
   // 2) Racha real: trimestres completos consecutivos (empezando en el ultimo
@@ -265,6 +272,7 @@ function computeLlaveRosaStatus(
     name,
     unitName,
     nivel,
+    nivelSugerido,
     vehiculo: cfg.vehiculo,
     fase,
     quarterLabel,
@@ -357,7 +365,10 @@ router.get('/me', authenticateJWT, async (req: AuthRequest, res: Response) => {
     const sapIds = [user.sapUserId, ...user.subordinates.filter(s => s.id !== user.id).map(s => s.sapUserId)];
     const { monthBruta, oldestMonthKey } = await buildMonthBruta(sapIds, now);
     const premioOverride = getLlaveRosaConfig().premioPreferencias[user.sapUserId];
-    const data = computeLlaveRosaStatus(user.sapUserId, user.name, user.unitName ?? null, monthBruta, oldestMonthKey, now, premioOverride);
+    // ?nivel=A|B -- permite "previsualizar" el panel completo como si la meta
+    // fuera el otro nivel (usado por el toggle "Premios por Nivel" del frontend).
+    const nivelOverride = req.query.nivel === 'A' || req.query.nivel === 'B' ? req.query.nivel : undefined;
+    const data = computeLlaveRosaStatus(user.sapUserId, user.name, user.unitName ?? null, monthBruta, oldestMonthKey, now, premioOverride, nivelOverride);
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: String(error) });

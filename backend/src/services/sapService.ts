@@ -10,6 +10,12 @@ export interface SapBusinessPartner {
   U_CodIni?: string | null; // CardCode de quien reclutó a esta persona (Iniciadora)
   U_NomIni?: string | null; // Nombre de la iniciadora o unidad
   U_DIQ?: string | null;    // 'S' = está en proceso DIQ
+  // Campo que IT actualiza al ascender/degradar a alguien (confirmado 28-jul-2026
+  // via Postman: "Directora" | "Consultora"). Mas confiable que U_Tipo, que a
+  // veces se queda sin actualizar en un ascenso -- ver caso Sarah Massiel Feliz
+  // Acosta (SF-00001): U_nivel_cliente="Directora" pero U_Tipo=null y sin grupo
+  // SAP asignado todavia.
+  U_nivel_cliente?: string | null;
 }
 
 export interface SapBusinessPartnerGroup {
@@ -54,7 +60,7 @@ export async function fetchAllBusinessPartners(): Promise<SapBusinessPartner[]> 
   while (true) {
     logger.debug(`SAP: BusinessPartners skip=${skip}`);
     const data = await sapGet<SapListResponse<SapBusinessPartner>>('/BusinessPartners', {
-      $select: 'CardCode,CardName,EmailAddress,GroupCode,U_Tipo,U_CodIni,U_NomIni,U_DIQ',
+      $select: 'CardCode,CardName,EmailAddress,GroupCode,U_Tipo,U_CodIni,U_NomIni,U_DIQ,U_nivel_cliente',
       $filter: "CardType eq 'cCustomer'",
       $top: String(PAGE_SIZE),
       $skip: String(skip),

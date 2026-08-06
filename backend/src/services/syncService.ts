@@ -82,7 +82,18 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
 
     // 4. Upsert todos los usuarios
     for (const bp of partners) {
-      const isDirectora = bp.U_Tipo === 'D' || directoraCardCodes.has(bp.CardCode);
+      // Tres señales independientes (OR) para detectar directoras -- esto es
+      // aditivo a proposito: cada señal solo puede SUMAR mas directoras
+      // detectadas, nunca le quita el rol a alguien que ya lo tenia por otra
+      // via. U_nivel_cliente se agrego 28-jul-2026 porque se confirmo con IT
+      // que es el campo que se actualiza de forma mas confiable al ascender a
+      // alguien (a veces U_Tipo se queda sin tocar y el grupo/unidad tarda en
+      // crearse -- ver caso Sarah Massiel Feliz Acosta, SF-00001). Si a alguien
+      // le falta el grupo en SAP, va a aparecer como directora sin unidad
+      // asignada todavia -- eso hay que resolverlo en SAP, no en el codigo.
+      const isDirectora = bp.U_Tipo === 'D'
+        || bp.U_nivel_cliente === 'Directora'
+        || directoraCardCodes.has(bp.CardCode);
       const isIniciadora = inciadoraCardCodes.has(bp.CardCode);
       const isDiq = isIniciadora && (bp.U_DIQ === 'S');
 
