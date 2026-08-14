@@ -9,6 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   LineChart, Line, CartesianGrid,
 } from 'recharts';
+import { DiqProgressCard, DiqProgress } from '../components/Common/DiqProgressCard';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,12 @@ interface OverviewData {
   lastMonthConsultorasActivas: number;
   subordinateCount: number;
   consultoraRanking: { sapUserId: string; name: string; ventas: number; meta: number; pedidos: number }[];
+  // unidad completa (directora + grupo) -- agregado 12-ago-2026, "Ventas del
+  // Mes (Grupo)" a proposito excluye la produccion personal de la directora
+  unitTotalSales:      number;
+  lastMonthUnitSales:  number;
+  unitTargetAmount:    number;
+  unitAchievementPercent: number;
   period: { month: number; year: number };
 }
 
@@ -409,6 +416,7 @@ function ConsultoraDashboard() {
 // ─── Dashboard Directora ──────────────────────────────────────────────────────
 
 function DirectoraDashboard() {
+  const { user } = useAuthStore();
   const now   = new Date();
   const [month, setMonth]           = useState(now.getMonth() + 1);
   const [year, setYear]             = useState(now.getFullYear());
@@ -418,6 +426,7 @@ function DirectoraDashboard() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
   const [tab, setTab]               = useState<'grupo' | 'personal'>('grupo');
+  const [diqProgress, setDiqProgress] = useState<DiqProgress | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -445,6 +454,15 @@ function DirectoraDashboard() {
   }, [month, year]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Widget "Progreso hacia Directora (DEC)" -- solo aplica a role='diq', y solo
+  // se pide una vez (no depende de mes/año, el periodo DEC es fijo de 3 meses).
+  useEffect(() => {
+    if (user?.role !== 'diq') return;
+    api.get<{ diq: DiqProgress | null }>('/profile/me')
+      .then(r => setDiqProgress(r.data.diq))
+      .catch(() => {});
+  }, [user?.role]);
 
   const years = Array.from({ length: 4 }, (_, i) => now.getFullYear() - i);
   const ov = overview;
@@ -480,13 +498,22 @@ function DirectoraDashboard() {
         {loading && <LoadingSpinner message="Cargando dashboard..." />}
         {error && <ErrorAlert message={error} />}
 
+        {/* Progreso hacia Directora -- solo para role='diq' (DEC), mismo widget que Mi Perfil */}
+        {diqProgress && <DiqProgressCard diq={diqProgress} />}
+
         {ov && !loading && (
           <>
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <KpiCard icon="fa-solid fa-bolt" iconBg="bg-yellow-100" iconColor="text-yellow-600"
                 label="Ventas del Dia" value={fmt(ov.todaySales)}
                 compareLabel="vs. ayer" delta={deltaPct(ov.todaySales, ov.yesterdaySales)} />
+              {/* Producción total de unidad (directora + grupo) -- "Ventas del Mes
+                  (Grupo)" de al lado a propósito NO incluye la producción personal
+                  de la directora, esta tarjeta sí -- agregado 12-ago-2026 */}
+              <KpiCard icon="fa-solid fa-crown" iconBg="bg-amber-100" iconColor="text-amber-600"
+                label="Producción Total de Unidad" value={fmt(ov.unitTotalSales)}
+                compareLabel="vs. mes anterior" delta={deltaPct(ov.unitTotalSales, ov.lastMonthUnitSales)} />
               <KpiCard icon="fa-solid fa-bag-shopping" iconBg="bg-pink-100" iconColor="text-pink-600"
                 label="Ventas del Mes (Grupo)" value={fmt(ov.groupTotalSales)}
                 compareLabel="vs. mes anterior" delta={deltaPct(ov.groupTotalSales, ov.lastMonthGroupSales)} />

@@ -10,6 +10,7 @@ import SuperAdminPage from './pages/SuperAdminPage';
 import PerfilPage from './pages/PerfilPage';
 import DIQPage from './pages/DIQPage';
 import LlaveRosaPage from './pages/LlaveRosaPage';
+import IniciadorasPage from './pages/IniciadorasPage';
 import { useAuthStore } from './store/authStore';
 import { useAuth } from './hooks/useAuth';
 
@@ -52,6 +53,7 @@ function App() {
           <Route path="/perfil/:userId" element={<ProtectedRoute><PerfilPage /></ProtectedRoute>} />
           <Route path="/diq" element={<ProtectedRoute><DIQPage /></ProtectedRoute>} />
           <Route path="/llave-rosa" element={<ProtectedRoute><LlaveRosaPage /></ProtectedRoute>} />
+          <Route path="/mis-iniciadoras" element={<ProtectedRoute><IniciadorasPage /></ProtectedRoute>} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

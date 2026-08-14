@@ -7,6 +7,7 @@ const ALL_NAV_ITEMS: { to: string; label: string; icon: string; roles: string[] 
   { to: '/dashboard',        label: 'Dashboard General',   icon: 'grid',    roles: ['directora', 'consultora', 'diq', 'iniciadora', 'superadmin'] },
   { to: '/sales',            label: 'Ventas y Produccion', icon: 'chart',   roles: ['directora', 'consultora', 'diq', 'iniciadora', 'superadmin'] },
   { to: '/consultoras',      label: 'Consultoras',          icon: 'group',   roles: ['directora', 'diq', 'iniciadora'] },
+  { to: '/mis-iniciadoras',  label: 'Mis Iniciadoras',      icon: 'star',    roles: ['directora', 'diq'] },
   { to: '/llave-rosa',       label: 'Llave Rosa',           icon: 'car',     roles: ['directora', 'superadmin'] },
   { to: '/metas',            label: 'Metas',                icon: 'target',  roles: ['directora', 'diq', 'iniciadora'] },
   { to: '/superadmin/metas', label: 'Metas',                icon: 'target',  roles: ['superadmin'] },
@@ -123,7 +124,7 @@ function getTheme(role: string, isSuperAdmin: boolean): Theme {
 }
 
 function roleLabel(role: string): string {
-  if (role === 'diq')       return 'En proceso DIQ';
+  if (role === 'diq')       return 'En proceso DEC';
   if (role === 'directora') return 'Directora';
   if (role === 'iniciadora')return 'Iniciadora';
   return 'Consultora';

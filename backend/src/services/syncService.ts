@@ -81,7 +81,21 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
     }
 
     // 4. Upsert todos los usuarios
+    let noAprobados = 0;
     for (const bp of partners) {
+      // Registro no aprobado todavia (CardCode temporal tipo "CA-<timestamp>"
+      // que WordPress/SAP asigna al momento del registro, antes de convertirlo
+      // al CardCode definitivo al aprobar) -- confirmado 11-ago-2026, campo
+      // U_estado_consultora. Solo se salta si el campo viene poblado Y no dice
+      // "Aprobado" -- si viene null/vacío se deja pasar igual que antes, para
+      // no excluir por error registros viejos que nunca tuvieron este campo.
+      // Caso real: Yolanda Carolina Castillo Germán con 3 registros (2
+      // CardCodes temporales + el definitivo C01318) antes de este filtro.
+      if (bp.U_estado_consultora && bp.U_estado_consultora !== 'Aprobado') {
+        noAprobados++;
+        continue;
+      }
+
       // Tres señales independientes (OR) para detectar directoras -- esto es
       // aditivo a proposito: cada señal solo puede SUMAR mas directoras
       // detectadas, nunca le quita el rol a alguien que ya lo tenia por otra
@@ -167,7 +181,7 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
       }
     }
 
-    logger.info(`SYNC usuarios: ${created} creados, ${updated} actualizados`);
+    logger.info(`SYNC usuarios: ${created} creados, ${updated} actualizados, ${noAprobados} saltados (no aprobados / registro temporal)`);
 
     // 5. Asignar supervisoras automáticamente por GroupCode
     for (const bp of partners) {
@@ -204,7 +218,16 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
     // 5b. Asegurar registro DIQ para usuarios marcados como DIQ en SAP (U_DIQ = 'S').
     //     El role='diq' ya se asigna arriba, pero sin una fila en la tabla DIQ no hay
     //     fecha de inicio ni metas que trackear -- se crea automaticamente si no existe.
+    //
+    //     IMPORTANTE (confirmado 11-ago-2026, caso Rosa Hilda Hidalgo Urbaez H00337):
+    //     SAP ya trae las fechas OFICIALES del trimestre en U_FechaIniD/U_FechaFinD
+    //     (ej. 2026-06-01 a 2026-08-31). Antes se calculaba una ventana propia de 3
+    //     meses desde el dia en que el sync detectaba a la candidata por primera vez,
+    //     lo cual no coincidia con el trimestre real que maneja el negocio. Ahora se
+    //     usa SAP como fuente de verdad cuando esas fechas vienen pobladas, tanto al
+    //     crear el registro como para corregir uno ya existente si SAP las actualiza.
     let diqsAutoCreados = 0;
+    let diqsFechasCorregidas = 0;
     for (const bp of partners) {
       const isIniciadoraBp = inciadoraCardCodes.has(bp.CardCode);
       const isDiqBp = isIniciadoraBp && (bp.U_DIQ === 'S');
@@ -216,25 +239,48 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
       });
       if (!diqUser) continue;
 
+      const sapStart = bp.U_FechaIniD ? new Date(bp.U_FechaIniD) : null;
+      const sapEnd   = bp.U_FechaFinD ? new Date(bp.U_FechaFinD) : null;
+
       const existingDiq = await prisma.dIQ.findUnique({ where: { userId: diqUser.id } });
-      if (existingDiq) continue; // ya tiene proceso DIQ registrado, no tocar fechas/metas
 
-      const startDate = new Date(); startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(startDate); endDate.setMonth(endDate.getMonth() + 3);
+      if (!existingDiq) {
+        const fallbackStart = new Date(); fallbackStart.setHours(0, 0, 0, 0);
+        const fallbackEnd = new Date(fallbackStart); fallbackEnd.setMonth(fallbackEnd.getMonth() + 3);
+        const startDate = sapStart ?? fallbackStart;
+        const endDate   = sapEnd   ?? fallbackEnd;
 
-      await prisma.dIQ.create({
-        data: {
-          userId: diqUser.id,
-          registeredById: diqUser.supervisorId ?? diqUser.id,
-          startDate,
-          endDate,
-          notes: 'Auto-creado por sync SAP (U_DIQ=S)',
-        },
-      });
-      diqsAutoCreados++;
+        await prisma.dIQ.create({
+          data: {
+            userId: diqUser.id,
+            registeredById: diqUser.supervisorId ?? diqUser.id,
+            startDate,
+            endDate,
+            notes: sapStart && sapEnd
+              ? 'Auto-creado por sync SAP (U_DIQ=S, fechas oficiales U_FechaIniD/U_FechaFinD)'
+              : 'Auto-creado por sync SAP (U_DIQ=S, sin fechas oficiales en SAP -- se usó fallback de 3 meses)',
+          },
+        });
+        diqsAutoCreados++;
+      } else if (existingDiq.status === 'active' && sapStart && sapEnd) {
+        // Corregir fechas si SAP trae las oficiales y difieren de lo que ya tenemos.
+        const cambioInicio = existingDiq.startDate.getTime() !== sapStart.getTime();
+        const cambioFin    = existingDiq.endDate.getTime()   !== sapEnd.getTime();
+        if (cambioInicio || cambioFin) {
+          await prisma.dIQ.update({
+            where: { id: existingDiq.id },
+            data: { startDate: sapStart, endDate: sapEnd },
+          });
+          diqsFechasCorregidas++;
+          logger.debug(`SYNC: DEC ${bp.CardCode} fechas corregidas desde SAP (${sapStart.toISOString().slice(0,10)} → ${sapEnd.toISOString().slice(0,10)})`);
+        }
+      }
     }
     if (diqsAutoCreados > 0) {
       logger.info(`SYNC: ${diqsAutoCreados} registros DIQ auto-creados desde SAP`);
+    }
+    if (diqsFechasCorregidas > 0) {
+      logger.info(`SYNC: ${diqsFechasCorregidas} registros DIQ con fechas corregidas desde SAP (U_FechaIniD/U_FechaFinD)`);
     }
 
     // 6. Asignar inciadoraId: U_CodIni apunta al CardCode de quien reclutó a esta persona.

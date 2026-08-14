@@ -7,6 +7,16 @@ const router = Router();
 
 const ITBIS = 1.18;
 
+// Regla de meta de produccion confirmada por Padrino 06-ago-2026: antes solo
+// se exigia un total de RD$300,000 en todo el periodo de 3 meses (umbral muy
+// bajo, ~100k/mes de promedio). La regla real es doble y ambas condiciones
+// aplican a la vez: (1) cada uno de los 3 meses del programa debe alcanzar
+// individualmente el minimo mensual, Y (2) el acumulado de los 3 meses debe
+// alcanzar la meta total. Si un mes no llega al minimo, no aprueba aunque el
+// acumulado si llegue a la meta total.
+const DIQ_MONTHLY_MIN = 300_000;   // minimo neto que debe hacer CADA mes del programa
+const DIQ_TOTAL_GOAL  = 1_000_000; // acumulado neto que debe alcanzar en los 3 meses
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 export async function calcDIQKPIs(diqUserId: string, startDate: Date, endDate: Date) {
@@ -51,8 +61,8 @@ export async function calcDIQKPIs(diqUserId: string, startDate: Date, endDate: D
   const produccionBruta = Number(produccionResult._sum.amount ?? 0);
   const produccionNeta  = produccionBruta / ITBIS;
 
-  // Producción por mes (para gráfica)
-  const meses: { month: number; year: number; bruta: number }[] = [];
+  // Producción por mes (para gráfica y para validar el minimo mensual)
+  const meses: { month: number; year: number; bruta: number; neta: number; cumpleMinimo: boolean }[] = [];
   const cursor = new Date(startDate);
   while (cursor <= endDate) {
     const m = cursor.getMonth() + 1;
@@ -63,9 +73,15 @@ export async function calcDIQKPIs(diqUserId: string, startDate: Date, endDate: D
       where: { userId: { in: sapIds }, saleDate: { gte: start, lt: end }, status: { not: 'cancelled' } },
       _sum: { amount: true },
     });
-    meses.push({ month: m, year: y, bruta: Number(r._sum.amount ?? 0) });
+    const bruta = Number(r._sum.amount ?? 0);
+    const neta  = bruta / ITBIS;
+    meses.push({ month: m, year: y, bruta, neta, cumpleMinimo: neta >= DIQ_MONTHLY_MIN });
     cursor.setMonth(cursor.getMonth() + 1);
   }
+
+  const mesesCumplidos     = meses.filter(m => m.cumpleMinimo).length;
+  const cumpleTodosLosMeses = meses.length > 0 && meses.every(m => m.cumpleMinimo);
+  const cumpleAcumulado    = produccionNeta >= DIQ_TOTAL_GOAL;
 
   return {
     consultoras: {
@@ -78,9 +94,18 @@ export async function calcDIQKPIs(diqUserId: string, startDate: Date, endDate: D
     produccion: {
       bruta:    produccionBruta,
       neta:     produccionNeta,
-      meta:     300_000,
-      pct:      Math.min((produccionNeta / 300_000) * 100, 100),
-      porMes:   meses,
+      // "meta" = acumulado de los 3 meses (antes decia 300k por error -- ese
+      // era en realidad el minimo MENSUAL, no el total del periodo).
+      meta:        DIQ_TOTAL_GOAL,
+      metaMensual: DIQ_MONTHLY_MIN,
+      pct:         Math.min((produccionNeta / DIQ_TOTAL_GOAL) * 100, 100),
+      porMes:      meses,
+      mesesCumplidos,
+      mesesTotal:  meses.length,
+      cumpleTodosLosMeses,
+      cumpleAcumulado,
+      // Solo "aprueba" produccion si cumple los dos requisitos a la vez.
+      aprobada:    cumpleTodosLosMeses && cumpleAcumulado,
     },
     iniciaciones: {
       total: nuevasIniciaciones,
@@ -141,7 +166,7 @@ router.post('/', authenticateJWT, async (req: AuthRequest, res: Response) => {
   try {
     const registrador = req.user!;
     if (registrador.role !== 'directora' && !registrador.isSuperAdmin) {
-      res.status(403).json({ error: 'Solo directoras o Super Admin pueden registrar DIQs' });
+      res.status(403).json({ error: 'Solo directoras o Super Admin pueden registrar DECs' });
       return;
     }
 
@@ -156,7 +181,7 @@ router.post('/', authenticateJWT, async (req: AuthRequest, res: Response) => {
 
     const existing = await prisma.dIQ.findUnique({ where: { userId } });
     if (existing && existing.status === 'active') {
-      res.status(400).json({ error: 'Ya tiene un proceso DIQ activo' }); return;
+      res.status(400).json({ error: 'Ya tiene un proceso DEC activo' }); return;
     }
 
     const startDate = new Date(); startDate.setHours(0, 0, 0, 0);
@@ -202,7 +227,7 @@ router.patch('/:id/members', authenticateJWT, async (req: AuthRequest, res: Resp
       where: { id: req.params.id as string },
       select: { id: true, userId: true, status: true },
     });
-    if (!diq) { res.status(404).json({ error: 'DIQ no encontrada' }); return; }
+    if (!diq) { res.status(404).json({ error: 'DEC no encontrada' }); return; }
 
     const { memberIds } = req.body as { memberIds: string[] };
 
@@ -294,7 +319,7 @@ router.get('/:id', authenticateJWT, async (req: AuthRequest, res: Response) => {
       },
     });
 
-    if (!diq) { res.status(404).json({ error: 'DIQ no encontrada' }); return; }
+    if (!diq) { res.status(404).json({ error: 'DEC no encontrada' }); return; }
 
     // Solo puede ver su propia DIQ, la directora que la registró, o superadmin
     const puedeVer = user.isSuperAdmin || diq.registeredById === user.id || diq.userId === user.id;
@@ -318,7 +343,7 @@ router.patch('/:id/complete', authenticateJWT, async (req: AuthRequest, res: Res
     }
 
     const diq = await prisma.dIQ.findUnique({ where: { id: req.params.id as string } });
-    if (!diq) { res.status(404).json({ error: 'DIQ no encontrada' }); return; }
+    if (!diq) { res.status(404).json({ error: 'DEC no encontrada' }); return; }
 
     const updated = await prisma.dIQ.update({
       where: { id: req.params.id as string },

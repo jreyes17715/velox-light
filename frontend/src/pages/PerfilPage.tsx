@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout/Layout';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import api from '../utils/api';
+import { DiqProgressCard, DiqProgress } from '../components/Common/DiqProgressCard';
 
 // ─── Tipos ────────────────────────────────────────────────
 
@@ -16,20 +17,6 @@ interface CreditNote {
   ncfRef: string | null;
   ncfNC: string | null;
   cancelled: boolean;
-}
-
-interface DiqKpis {
-  consultoras:  { total: number; activas: number; meta: number; pct: number };
-  produccion:   { bruta: number; neta: number; meta: number; pct: number };
-  iniciaciones: { total: number; meta: number; pct: number };
-}
-
-interface DiqProgress {
-  startDate: string;
-  endDate: string;
-  diasRestantes: number;
-  vencido: boolean;
-  kpis: DiqKpis;
 }
 
 interface ProfileData {
@@ -60,96 +47,6 @@ const I = ({ icon, className = '' }: { icon: string; className?: string }) => (
   <i className={`${icon} fa-fw ${className}`} aria-hidden="true" />
 );
 
-function DiqBar({ label, current, target, currentLabel }: { label: string; current: number; target: number; currentLabel: string }) {
-  const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
-  const met = current >= target;
-  return (
-    <div>
-      <div className="flex justify-between text-xs mb-1">
-        <span className="font-medium text-gray-700">{label}</span>
-        <span className={met ? 'text-green-600 font-semibold' : 'text-gray-500'}>{currentLabel}</span>
-      </div>
-      <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${met ? 'bg-green-500' : 'bg-amber-500'}`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function DiqProgressCard({ diq }: { diq: DiqProgress }) {
-  const { kpis } = diq;
-  const produccionMet   = kpis.produccion.neta >= kpis.produccion.meta;
-  const consultorasMet  = kpis.consultoras.activas >= kpis.consultoras.meta;
-  const todoOk = produccionMet && consultorasMet;
-
-  const faltaProduccion  = Math.max(0, kpis.produccion.meta - kpis.produccion.neta);
-  const faltaConsultoras = Math.max(0, kpis.consultoras.meta - kpis.consultoras.activas);
-
-  const riesgo = !todoOk && diq.diasRestantes <= 30;
-
-  return (
-    <div className={`rounded-xl border p-5 ${diq.vencido ? 'bg-red-50 border-red-200' : riesgo ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-          <I icon="fa-solid fa-star" className="text-amber-500" />
-          Progreso hacia Directora (DIQ)
-        </h2>
-        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-          diq.vencido ? 'bg-red-100 text-red-700' : todoOk ? 'bg-green-100 text-green-700' : riesgo ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
-        }`}>
-          {diq.vencido ? 'Periodo vencido' : `${diq.diasRestantes} dias restantes`}
-        </span>
-      </div>
-
-      <div className="space-y-4">
-        <DiqBar
-          label="Produccion neta acumulada"
-          current={kpis.produccion.neta}
-          target={kpis.produccion.meta}
-          currentLabel={`${fmt(kpis.produccion.neta)} / ${fmt(kpis.produccion.meta)}`}
-        />
-        <DiqBar
-          label="Consultoras activas"
-          current={kpis.consultoras.activas}
-          target={kpis.consultoras.meta}
-          currentLabel={`${kpis.consultoras.activas} / ${kpis.consultoras.meta}`}
-        />
-        <DiqBar
-          label="Nuevas iniciaciones"
-          current={kpis.iniciaciones.total}
-          target={kpis.iniciaciones.meta}
-          currentLabel={`${kpis.iniciaciones.total} / ${kpis.iniciaciones.meta}`}
-        />
-      </div>
-
-      {!todoOk && (
-        <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Que le falta</p>
-          {!produccionMet && (
-            <p className="text-xs text-gray-600">
-              <I icon="fa-solid fa-circle-exclamation" className="text-amber-500 mr-1" />
-              {fmt(faltaProduccion)} en produccion neta
-            </p>
-          )}
-          {!consultorasMet && (
-            <p className="text-xs text-gray-600">
-              <I icon="fa-solid fa-circle-exclamation" className="text-amber-500 mr-1" />
-              {faltaConsultoras} consultora{faltaConsultoras !== 1 ? 's' : ''} activa{faltaConsultoras !== 1 ? 's' : ''} mas
-            </p>
-          )}
-        </div>
-      )}
-
-      {todoOk && (
-        <p className="mt-4 pt-4 border-t border-gray-100 text-xs text-green-700 font-medium">
-          <I icon="fa-solid fa-circle-check" className="mr-1" />
-          Cumple los requisitos minimos para calificar como Directora.
-        </p>
-      )}
-    </div>
-  );
-}
-
 // ─── Pagina ────────────────────────────────────────────────
 
 export default function PerfilPage() {
@@ -179,7 +76,7 @@ export default function PerfilPage() {
   const achievement = mesActual.meta > 0 ? Math.min((mesActual.ventas / mesActual.meta) * 100, 100) : 0;
   const roleLabel = user.isSuperAdmin ? 'Super Admin'
     : user.role === 'directora' ? 'Directora'
-    : user.role === 'diq' ? 'En proceso DIQ'
+    : user.role === 'diq' ? 'En proceso DEC'
     : user.role === 'iniciadora' ? 'Iniciadora'
     : 'Consultora';
 
@@ -337,7 +234,7 @@ export default function PerfilPage() {
                   )}
                   {(user.role === 'directora' || user.role === 'diq') && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">{user.role === 'diq' ? 'Consultoras DIQ' : 'Consultoras en unidad'}</span>
+                      <span className="text-gray-500">{user.role === 'diq' ? 'Consultoras DEC' : 'Consultoras en unidad'}</span>
                       <span className="font-medium text-gray-800">{subordinadasCount}</span>
                     </div>
                   )}
@@ -377,7 +274,7 @@ export default function PerfilPage() {
               {user.role === 'diq' && subordinadas.length > 0 && (
                 <div className="bg-white rounded-xl border border-gray-200 p-5">
                   <h2 className="font-semibold text-gray-800 mb-3 text-sm">
-                    <I icon="fa-solid fa-users" className="mr-2 text-pink-500" />Grupo DIQ ({subordinadas.length})
+                    <I icon="fa-solid fa-users" className="mr-2 text-pink-500" />Grupo DEC ({subordinadas.length})
                   </h2>
                   <div className="space-y-1 max-h-48 overflow-y-auto">
                     {subordinadas.map(s => (

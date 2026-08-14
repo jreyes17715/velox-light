@@ -830,7 +830,7 @@ function IniciadorasPanel({ month, year }: { month: number; year: number }) {
   const totalProduccion   = iniciadoras.reduce((s, i) => s + i.produccionBruta, 0);
 
   const roleBadge = (role: string) => {
-    if (role === 'diq')       return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">DIQ</span>;
+    if (role === 'diq')       return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">DEC</span>;
     if (role === 'directora') return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-700">Directora</span>;
     return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">Iniciadora</span>;
   };
@@ -970,7 +970,7 @@ function ConsultorasPanel({ month, year }: { month: number; year: number }) {
   if (!data) return null;
 
   const roleBadge = (role: string) => {
-    if (role === 'diq')        return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">DIQ</span>;
+    if (role === 'diq')        return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">DEC</span>;
     if (role === 'iniciadora') return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">Iniciadora</span>;
     return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">Consultora</span>;
   };
@@ -984,7 +984,7 @@ function ConsultorasPanel({ month, year }: { month: number; year: number }) {
     { key: 'todas',      label: 'Todas'       },
     { key: 'consultora', label: 'Consultoras' },
     { key: 'iniciadora', label: 'Iniciadoras' },
-    { key: 'diq',        label: 'DIQ'         },
+    { key: 'diq',        label: 'DEC'         },
   ];
 
   return (

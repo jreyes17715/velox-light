@@ -3,11 +3,18 @@ import { Layout } from '../components/Layout/Layout';
 import { useAuthStore } from '../store/authStore';
 import api from '../utils/api';
 
+interface MesProduccion { month: number; year: number; bruta: number; neta: number; cumpleMinimo: boolean; }
 interface KPIs {
   consultoras:  { total: number; activas: number; meta: number; pct: number };
-  produccion:   { bruta: number; neta: number; meta: number; pct: number };
+  produccion:   {
+    bruta: number; neta: number; meta: number; metaMensual: number; pct: number;
+    porMes: MesProduccion[]; mesesCumplidos: number; mesesTotal: number;
+    cumpleTodosLosMeses: boolean; cumpleAcumulado: boolean; aprobada: boolean;
+  };
   iniciaciones: { total: number; meta: number; pct: number };
 }
+
+const MES_NOMBRE = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 interface DIQRow {
   id: string; startDate: string; endDate: string; status: string; notes: string | null;
   user: { name: string; sapUserId: string };
@@ -81,18 +88,18 @@ function RegistrarDIQModal({ onClose, onSaved, isSuperAdmin }: {
       await api.post('/diq', { userId, notes, ...(isSuperAdmin ? { memberIds } : {}) });
       onSaved(); onClose();
     } catch (e: any) {
-      setError(e.response?.data?.error ?? 'Error registrando DIQ');
+      setError(e.response?.data?.error ?? 'Error registrando DEC');
     } finally { setSaving(false); }
   };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-lg font-bold text-gray-900">Registrar Nueva DIQ</h2>
-        <p className="text-sm text-gray-500">El periodo de 3 meses inicia desde hoy. La candidata pasara a rol DIQ.</p>
+        <h2 className="text-lg font-bold text-gray-900">Registrar Nueva DEC</h2>
+        <p className="text-sm text-gray-500">El periodo de 3 meses inicia desde hoy. La candidata pasara a rol DEC.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Candidata DIQ</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Candidata DEC</label>
             <select value={userId} onChange={e => setUserId(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300">
               <option value="">Seleccionar consultora...</option>
@@ -113,7 +120,7 @@ function RegistrarDIQModal({ onClose, onSaved, isSuperAdmin }: {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-gray-700">
-                Asignar consultoras al grupo DIQ
+                Asignar consultoras al grupo DEC
                 {memberIds.length > 0 && (
                   <span className="ml-2 bg-pink-100 text-pink-700 text-xs px-2 py-0.5 rounded-full font-semibold">
                     {memberIds.length} seleccionadas
@@ -149,7 +156,7 @@ function RegistrarDIQModal({ onClose, onSaved, isSuperAdmin }: {
                 </label>
               ))}
             </div>
-            <p className="text-xs text-gray-400 mt-1">Estas consultoras quedaran bajo la supervision de la candidata DIQ.</p>
+            <p className="text-xs text-gray-400 mt-1">Estas consultoras quedaran bajo la supervision de la candidata DEC.</p>
           </div>
         )}
 
@@ -158,7 +165,7 @@ function RegistrarDIQModal({ onClose, onSaved, isSuperAdmin }: {
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancelar</button>
           <button onClick={handleSave} disabled={saving}
             className="px-5 py-2 bg-pink-600 text-white text-sm font-semibold rounded-lg hover:bg-pink-700 disabled:opacity-50">
-            {saving ? 'Guardando...' : 'Registrar DIQ'}
+            {saving ? 'Guardando...' : 'Registrar DEC'}
           </button>
         </div>
       </div>
@@ -192,13 +199,13 @@ export default function DIQPage() {
       <div className="p-6 max-w-6xl mx-auto space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Candidatas DIQ</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Candidatas DEC</h1>
             <p className="text-sm text-gray-500 mt-0.5">Seguimiento de consultoras en proceso de calificacion</p>
           </div>
           {(user?.role === 'directora' || user?.isSuperAdmin) && (
             <button onClick={() => setModal(true)}
               className="bg-pink-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-pink-700">
-              + Registrar DIQ
+              + Registrar DEC
             </button>
           )}
         </div>
@@ -222,8 +229,8 @@ export default function DIQPage() {
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">{error}</div>}
         {!loading && diqs.length === 0 && (
           <div className="text-center py-16 text-gray-400">
-            <p className="text-lg">Sin candidatas DIQ registradas</p>
-            <p className="text-sm mt-1">Usa el boton "+ Registrar DIQ" para comenzar</p>
+            <p className="text-lg">Sin candidatas DEC registradas</p>
+            <p className="text-sm mt-1">Usa el boton "+ Registrar DEC" para comenzar</p>
           </div>
         )}
 
@@ -284,6 +291,37 @@ export default function DIQPage() {
                         <p className="text-lg font-bold text-pink-700">{fmt(diq.kpis.produccion.neta)}</p>
                       </div>
                     </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          Cumplimiento mensual (minimo {fmt(diq.kpis.produccion.metaMensual)}/mes)
+                        </p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                          diq.kpis.produccion.aprobada ? 'bg-green-100 text-green-700'
+                          : diq.kpis.produccion.cumpleTodosLosMeses || diq.kpis.produccion.cumpleAcumulado ? 'bg-yellow-100 text-yellow-700'
+                          : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {diq.kpis.produccion.mesesCumplidos}/{diq.kpis.produccion.mesesTotal} meses cumplidos
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {diq.kpis.produccion.porMes.map(m => (
+                          <div key={`${m.year}-${m.month}`}
+                            className={`rounded-lg p-3 border ${m.cumpleMinimo ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-semibold text-gray-600">{MES_NOMBRE[m.month - 1]} {m.year}</p>
+                              <i className={`fa-solid ${m.cumpleMinimo ? 'fa-circle-check text-green-500' : 'fa-circle-xmark text-red-400'} text-sm`} aria-hidden="true" />
+                            </div>
+                            <p className={`text-sm font-bold mt-1 ${m.cumpleMinimo ? 'text-green-700' : 'text-red-600'}`}>{fmt(m.neta)}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-2">
+                        Aprueba solo si cumple el minimo en TODOS los meses Y el acumulado llega a {fmt(diq.kpis.produccion.meta)}.
+                      </p>
+                    </div>
+
                     {diq.notes && <p className="text-sm text-gray-500 italic">Nota: {diq.notes}</p>}
                     {isActive && user?.isSuperAdmin && (
                       <div className="flex justify-end">

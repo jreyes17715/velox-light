@@ -149,6 +149,18 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
     const groupAchievementPercent = groupTargetAmount > 0
       ? (groupTotalSales / groupTargetAmount) * 100 : 0;
 
+    // ── unidad completa (directora + grupo) ────────────────────────────────────
+    // Confirmado 12-ago-2026: "groupTotalSales" a propósito excluye la
+    // producción personal de la directora (ver comentario arriba), pero eso
+    // dejaba a las directoras/DEC sin forma de ver la producción TOTAL de su
+    // unidad (ella + sus consultoras) en un solo número. Se agrega esto como
+    // campos NUEVOS y separados -- no se toca groupTotalSales ni su significado,
+    // para no romper nada que ya dependa de ese campo (Llave Rosa, Super Admin, etc).
+    const unitTotalSales        = totalSales + groupTotalSales;
+    const lastMonthUnitSales    = lastMonthSales + lastMonthGroupSales;
+    const unitTargetAmount      = targetAmount + groupTargetAmount;
+    const unitAchievementPercent = unitTargetAmount > 0 ? (unitTotalSales / unitTargetAmount) * 100 : 0;
+
     res.json({
       user: { name: user.name, role: user.role, unitName: user.unitName },
       // personales
@@ -156,13 +168,17 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
       todayCount: todayAgg._count.id,
       salesCount:  salesAgg._count.id,
       targetAmount, achievementPercent: Math.round(achievementPercent * 10) / 10,
-      // grupo
+      // grupo (solo consultoras, sin la directora -- ver comentario arriba)
       groupTotalSales, lastMonthGroupSales,
       groupTargetAmount,
       groupAchievementPercent: Math.round(groupAchievementPercent * 10) / 10,
       consultorasActivas, lastMonthConsultorasActivas,
       subordinateCount: subs.length,
       consultoraRanking,
+      // unidad completa (directora + grupo)
+      unitTotalSales, lastMonthUnitSales,
+      unitTargetAmount,
+      unitAchievementPercent: Math.round(unitAchievementPercent * 10) / 10,
       currency: 'DOP',
       period: { month, year },
     });
@@ -306,6 +322,116 @@ router.put('/metas', authenticateJWT, async (req: AuthRequest, res: Response) =>
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error guardando metas' });
+  }
+});
+
+// GET /api/dashboard/iniciadoras -- vista "celulas" para la directora: sus
+// reclutas personales directas (inciadoraId = ella, viene de U_CodIni en SAP
+// -- reclutamiento personal, NO tiene que ver con supervisorId/unidad SAP) con
+// su produccion del periodo, y para cada una sus propias reclutas (nivel 2).
+// Mismo calculo de produccion que superadmin.ts /iniciadoras: suma bruta de
+// Sale.amount del periodo sin restar notas de credito -- es informativo,
+// consistente con el resto del sistema (no toca el motor de comisiones).
+const DASHBOARD_ITBIS = 1.18;
+
+router.get('/iniciadoras', authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    // DEC (antes DIQ) tambien puede tener reclutas personales propias (U_CodIni
+    // en SAP) igual que una directora -- misma vista, mismos datos, solo que
+    // filtrados por su propio id via inciadoraId (ver query de abajo).
+    if (user.role !== 'directora' && user.role !== 'diq' && !user.isSuperAdmin) {
+      res.status(403).json({ error: 'Esta vista es exclusiva para Directoras y DEC' });
+      return;
+    }
+
+    const now   = new Date();
+    const month = req.query.month ? parseInt(req.query.month as string) : now.getMonth() + 1;
+    const year  = req.query.year  ? parseInt(req.query.year  as string) : now.getFullYear();
+    const gte   = new Date(year, month - 1, 1);
+    const lt    = new Date(year, month, 1);
+
+    // Nivel 1: a quien reclutó personalmente la directora
+    const nivel1 = await prisma.user.findMany({
+      where: { inciadoraId: user.id },
+      select: {
+        id: true, sapUserId: true, name: true, role: true,
+        reclutas: {
+          select: { id: true, sapUserId: true, name: true, role: true },
+          orderBy: { name: 'asc' },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    if (nivel1.length === 0) {
+      res.json({ month, year, totalReclutas: 0, totalReclutasNivel2: 0, produccionTotal: 0, iniciadoras: [] });
+      return;
+    }
+
+    // Nivel 2: reclutas de cada recluta -- se traen todas las ventas (nivel 1 + 2) en una sola query
+    const nivel2Ids = nivel1.flatMap(n => n.reclutas.map(r => r.sapUserId));
+    const allIds = [...nivel1.map(n => n.sapUserId), ...nivel2Ids];
+
+    const ventas = await prisma.sale.groupBy({
+      by: ['userId'],
+      where: { userId: { in: allIds }, saleDate: { gte, lt }, status: { not: 'cancelled' } },
+      _sum: { amount: true },
+      _count: { id: true },
+    });
+
+    const ventasMap = new Map(ventas.map(v => [v.userId, {
+      total:   Number(v._sum.amount ?? 0),
+      pedidos: v._count.id,
+    }]));
+
+    const result = nivel1.map(n => {
+      const vN1 = ventasMap.get(n.sapUserId);
+
+      const reclutasDetalle = n.reclutas.map(r => {
+        const v = ventasMap.get(r.sapUserId);
+        return {
+          sapUserId: r.sapUserId,
+          name:      r.name,
+          role:      r.role,
+          ventas:    v?.total   ?? 0,
+          pedidos:   v?.pedidos ?? 0,
+          activa:    (v?.total ?? 0) > 0,
+        };
+      }).sort((a, b) => b.ventas - a.ventas);
+
+      const produccionReclutas = reclutasDetalle.reduce((s, r) => s + r.ventas, 0);
+
+      return {
+        sapUserId:        n.sapUserId,
+        name:              n.name,
+        role:              n.role,
+        ventasPersonales:  vN1?.total   ?? 0,
+        pedidosPersonales: vN1?.pedidos ?? 0,
+        totalReclutas:     n.reclutas.length,
+        reclutasActivas:   reclutasDetalle.filter(r => r.activa).length,
+        produccionReclutas,
+        produccionNeta:    produccionReclutas / DASHBOARD_ITBIS,
+        reclutas:          reclutasDetalle,
+      };
+    });
+
+    result.sort((a, b) =>
+      (b.ventasPersonales + b.produccionReclutas) - (a.ventasPersonales + a.produccionReclutas)
+    );
+
+    const produccionTotal = result.reduce((s, n) => s + n.ventasPersonales + n.produccionReclutas, 0);
+
+    res.json({
+      month, year,
+      totalReclutas:       nivel1.length,
+      totalReclutasNivel2: nivel2Ids.length,
+      produccionTotal,
+      iniciadoras: result,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error cargando iniciadoras' });
   }
 });
 
