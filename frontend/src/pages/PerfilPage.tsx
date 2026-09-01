@@ -4,6 +4,11 @@ import { Layout } from '../components/Layout/Layout';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import api from '../utils/api';
 import { DiqProgressCard, DiqProgress } from '../components/Common/DiqProgressCard';
+import { LoadingSpinner } from '../components/Common/LoadingSpinner';
+import { ErrorAlert } from '../components/Common/ErrorAlert';
+import { StatusBadge } from '../components/Common/StatusBadge';
+import { Sale, PaginatedResponse } from '../types';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 // ─── Tipos ────────────────────────────────────────────────
 
@@ -23,6 +28,7 @@ interface ProfileData {
   user: {
     id: string; sapUserId: string; name: string; email: string | null;
     role: string; unitName: string | null; isSuperAdmin: boolean;
+    status?: string | null;
   };
   mesActual: { month: number; year: number; ventas: number; pedidos: number; meta: number; };
   historial: { month: number; year: number; ventas: number; pedidos: number; meta: number; }[];
@@ -47,6 +53,158 @@ const I = ({ icon, className = '' }: { icon: string; className?: string }) => (
   <i className={`${icon} fa-fw ${className}`} aria-hidden="true" />
 );
 
+const statusLabel: Record<string, { label: string; color: string }> = {
+  completed: { label: 'Completada', color: 'text-green-700 bg-green-50' },
+  pending: { label: 'Pendiente', color: 'text-yellow-700 bg-yellow-50' },
+  cancelled: { label: 'Cancelada', color: 'text-red-700 bg-red-50' },
+};
+
+// ─── Tab: Ventas y Producción ────────────────────────────────
+// Portado de SalesPage.tsx (12-ago-2026) -- historial de ventas propio con
+// filtros y paginación. targetUserId = sapUserId de quien se esta viendo
+// (uno mismo, o el perfil ajeno que superadmin este consultando).
+function VentasTab({ targetUserId }: { targetUserId: string }) {
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [total, setTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [status, setStatus] = useState('');
+  const [page, setPage] = useState(1);
+  const limit = 20;
+
+  useEffect(() => {
+    setPage(1);
+  }, [targetUserId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+    const params = new URLSearchParams({ userId: targetUserId, page: String(page), limit: String(limit) });
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (status) params.append('status', status);
+
+    api.get<PaginatedResponse<Sale>>(`/sales?${params}`)
+      .then(({ data }) => { if (!cancelled) { setSales(data.data); setTotal(data.total); } })
+      .catch(() => { if (!cancelled) setError('Error cargando ventas.'); })
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [targetUserId, page, startDate, endDate, status]);
+
+  const totalPages = Math.ceil(total / limit);
+  const totalAmount = sales.reduce((sum, s) => s.status !== 'cancelled' ? sum + s.amount : sum, 0);
+
+  return (
+    <div className="space-y-4">
+      {error && <ErrorAlert message={error} />}
+
+      {/* Filtros */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Desde</label>
+          <input type="date" value={startDate}
+            onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-pink-300" />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Hasta</label>
+          <input type="date" value={endDate}
+            onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-pink-300" />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Estado</label>
+          <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-pink-300">
+            <option value="">Todos</option>
+            <option value="completed">Completadas</option>
+            <option value="pending">Pendientes</option>
+            <option value="cancelled">Canceladas</option>
+          </select>
+        </div>
+        <button onClick={() => { setStartDate(''); setEndDate(''); setStatus(''); setPage(1); }}
+          className="text-sm text-gray-400 hover:text-gray-600 underline">
+          Limpiar filtros
+        </button>
+
+        <div className="ml-auto flex gap-4">
+          <div className="text-right">
+            <p className="text-xs text-gray-500">Total ventas página</p>
+            <p className="text-base font-bold text-pink-600">{formatCurrency(totalAmount)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-500">Registros</p>
+            <p className="text-base font-bold text-gray-700">{total}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabla */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16 text-gray-400">
+            <LoadingSpinner message="Cargando ventas..." />
+          </div>
+        ) : sales.length === 0 ? (
+          <div className="flex items-center justify-center py-16 text-gray-400">
+            No hay ventas en el período seleccionado
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide border-b border-gray-100">
+                  <th className="text-left px-5 py-3">Orden SAP</th>
+                  <th className="text-left px-5 py-3">Fecha</th>
+                  <th className="text-right px-5 py-3">Monto</th>
+                  <th className="text-center px-5 py-3">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {sales.map((sale) => {
+                  const st = statusLabel[sale.status] || { label: sale.status, color: '' };
+                  return (
+                    <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-5 py-3 font-mono text-gray-600 text-xs">{sale.sapOrderId}</td>
+                      <td className="px-5 py-3 text-gray-600">{formatDate(sale.saleDate)}</td>
+                      <td className="px-5 py-3 text-right font-semibold text-gray-800">{formatCurrency(sale.amount)}</td>
+                      <td className="px-5 py-3 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${st.color}`}>
+                          {st.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">
+            ← Anterior
+          </button>
+          <span className="text-sm text-gray-600">Página {page} de {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">
+            Siguiente →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Pagina ────────────────────────────────────────────────
 
 export default function PerfilPage() {
@@ -55,7 +213,7 @@ export default function PerfilPage() {
   const [data, setData]       = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
-  const [tab, setTab]         = useState<'resumen' | 'nc'>('resumen');
+  const [tab, setTab]         = useState<'resumen' | 'ventas' | 'nc'>('resumen');
   const [ncFilter, setNcFilter] = useState('');
 
   useEffect(() => {
@@ -90,6 +248,7 @@ export default function PerfilPage() {
 
   const TABS = [
     { key: 'resumen' as const, icon: 'fa-solid fa-chart-simple', label: 'Resumen' },
+    { key: 'ventas'  as const, icon: 'fa-solid fa-bag-shopping', label: 'Ventas y Producción' },
     { key: 'nc'      as const, icon: 'fa-solid fa-file-circle-minus', label: `Notas de Credito (${creditNotes.length})` },
   ];
 
@@ -131,6 +290,7 @@ export default function PerfilPage() {
                   <I icon="fa-solid fa-crown" className="mr-1" />Super Admin
                 </span>
               )}
+              <StatusBadge status={user.status} variant="bubble" />
             </div>
             <p className="text-xs text-gray-400 mt-1">ID SAP: {user.sapUserId}{user.email ? ` · ${user.email}` : ''}</p>
           </div>
@@ -289,6 +449,9 @@ export default function PerfilPage() {
             </div>
           </>
         )}
+
+        {/* ── Tab: Ventas y Producción ── */}
+        {tab === 'ventas' && <VentasTab targetUserId={user.sapUserId} />}
 
         {/* ── Tab: Notas de Credito ── */}
         {tab === 'nc' && (

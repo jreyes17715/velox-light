@@ -224,6 +224,7 @@ router.get('/subordinates', authenticateJWT, async (req: AuthRequest, res: Respo
           totalSales: totalSalesAmt, targetAmount: targetAmt,
           achievementPercent: Math.round(achievementPct * 10) / 10,
           salesCount: salesResult._count,
+          status: sub.status ?? null,
         };
       })
     );
@@ -243,8 +244,12 @@ router.get('/metas', authenticateJWT, async (req: AuthRequest, res: Response) =>
     const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
     const year  = parseInt(req.query.year  as string) || new Date().getFullYear();
 
-    const unitTargetRow = await prisma.target.findUnique({
-      where: { userId_month_year: { userId: user.sapUserId, month, year } },
+    // Meta de UNIDAD asignada por Super Admin -- vive en UnitTarget, separada
+    // de Target (que es la meta individual de cada miembro, incluida la
+    // porcion personal de la directora dentro de su propia distribucion).
+    // Ver comentario en schema.prisma sobre el bug que esto corrige.
+    const unitTargetRow = await prisma.unitTarget.findUnique({
+      where: { directoraId_month_year: { directoraId: user.sapUserId, month, year } },
     });
     const unitGoal = Number(unitTargetRow?.targetAmount ?? 0);
 

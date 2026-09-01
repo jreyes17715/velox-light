@@ -4,15 +4,20 @@ import { LoadingSpinner } from '../components/Common/LoadingSpinner';
 import { ErrorAlert } from '../components/Common/ErrorAlert';
 import api from '../utils/api';
 
-interface AdminUser {
-  id: string;
-  sapUserId: string;
-  name: string;
-  role: string;
-  unitName: string | null;
-  supervisorId: string | null;
-  supervisor: { id: string; name: string } | null;
-}
+// "Asignar Consultoras a Directoras" oculto a pedido de Padrino (25-ago-2026)
+// -- no se va a usar y GET /admin/users trae casi 1000 registros sin paginar,
+// haciendo esta pagina lenta. Se deja todo el codigo comentado (interface,
+// fetch, estado, handler y el bloque JSX) para poder reactivarlo facil si
+// hace falta -- no se borro nada, solo se dejo de llamar/renderizar.
+// interface AdminUser {
+//   id: string;
+//   sapUserId: string;
+//   name: string;
+//   role: string;
+//   unitName: string | null;
+//   supervisorId: string | null;
+//   supervisor: { id: string; name: string } | null;
+// }
 
 interface SyncLog {
   id: string;
@@ -25,26 +30,25 @@ interface SyncLog {
 }
 
 export function AdminPage() {
-  const [users, setUsers] = useState<AdminUser[]>([]);
+  // const [users, setUsers] = useState<AdminUser[]>([]);
   const [logs, setLogs] = useState<SyncLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
-  const directoras = users.filter((u) => u.role === 'directora');
-  const consultoras = users.filter((u) => u.role === 'consultora');
+  // const directoras = users.filter((u) => u.role === 'directora');
+  // const consultoras = users.filter((u) => u.role === 'consultora');
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [usersRes, logsRes] = await Promise.all([
-        api.get<AdminUser[]>('/admin/users'),
-        api.get<SyncLog[]>('/admin/sync/logs'),
-      ]);
-      setUsers(usersRes.data);
+      // GET /admin/users ya no se llama aqui -- ver comentario junto a
+      // AdminUser mas arriba. Si se reactiva la asignacion, volver a incluir
+      // ese fetch en el Promise.all.
+      const logsRes = await api.get<SyncLog[]>('/admin/sync/logs');
       setLogs(logsRes.data);
     } catch {
       setError('Error cargando datos de admin.');
@@ -69,22 +73,22 @@ export function AdminPage() {
     }
   };
 
-  const handleAssignSupervisor = async (consultaId: string, supervisorId: string) => {
-    try {
-      await api.patch(`/admin/users/${consultaId}/supervisor`, {
-        supervisorId: supervisorId || null,
-      });
-      setUsers((prev) =>
-        prev.map((u) => {
-          if (u.id !== consultaId) return u;
-          const sup = directoras.find((d) => d.id === supervisorId) || null;
-          return { ...u, supervisorId: supervisorId || null, supervisor: sup };
-        })
-      );
-    } catch {
-      setError('Error asignando supervisora');
-    }
-  };
+  // const handleAssignSupervisor = async (consultaId: string, supervisorId: string) => {
+  //   try {
+  //     await api.patch(`/admin/users/${consultaId}/supervisor`, {
+  //       supervisorId: supervisorId || null,
+  //     });
+  //     setUsers((prev) =>
+  //       prev.map((u) => {
+  //         if (u.id !== consultaId) return u;
+  //         const sup = directoras.find((d) => d.id === supervisorId) || null;
+  //         return { ...u, supervisorId: supervisorId || null, supervisor: sup };
+  //       })
+  //     );
+  //   } catch {
+  //     setError('Error asignando supervisora');
+  //   }
+  // };
 
   const statusColor = (s: string) => {
     if (s === 'success') return 'text-green-600 bg-green-50';
@@ -99,7 +103,7 @@ export function AdminPage() {
       <div className="flex flex-col min-h-screen">
         <div className="bg-white border-b border-gray-200 px-6 py-3">
           <h2 className="text-lg font-bold text-gray-800">Administración</h2>
-          <p className="text-xs text-gray-500">Sync SAP · Asignación de consultoras</p>
+          <p className="text-xs text-gray-500">Sync SAP</p>
         </div>
 
         <div className="flex-1 p-6 space-y-5 max-w-5xl mx-auto w-full">
@@ -163,7 +167,11 @@ export function AdminPage() {
             )}
           </div>
 
-          {/* Asignación de supervisoras */}
+          {/* Asignacion de supervisoras -- oculta a pedido de Padrino (25-ago-2026),
+              no se va a usar y la carga de /admin/users (casi 1000 registros sin
+              paginar) hacia esta pagina lenta. Bloque completo comentado, no
+              borrado -- ver comentario junto a AdminUser mas arriba para reactivar. */}
+          {/*
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="font-semibold text-gray-800">Asignar Consultoras a Directoras</h3>
@@ -205,6 +213,7 @@ export function AdminPage() {
               </table>
             </div>
           </div>
+          */}
         </div>
       </div>
     </Layout>

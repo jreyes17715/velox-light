@@ -16,6 +16,7 @@ model User {
   unitName     String?  // Nombre de la unidad (solo directoras)
   isSuperAdmin  Boolean  @default(false)
   localPassword String?  // Hash bcrypt — solo para usuarios del sistema (no SAP)
+  status       String?  // U_Status de SAP: A1/A2/A3/B1/B2/B3/T1/T2/T3 (informativo)
 
   // Jerarquía directora → consultoras / directora → directora madre
   supervisorId String?
@@ -31,6 +32,7 @@ model User {
   sales        Sale[]
   targets      Target[]
   creditNotes  CreditNote[]
+  unitTargets  UnitTarget[] // metas de unidad asignadas a esta directora (ver modelo UnitTarget)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   lastSapSync  DateTime?
@@ -114,6 +116,32 @@ model Target {
   @@unique([userId, month, year])
   @@index([userId])
   @@map("targets")
+}
+
+// Meta de UNIDAD asignada por el Super Admin a una directora (bruta, total del
+// grupo). Separada a proposito de Target -- antes ambas usaban la misma fila
+// (Target con userId = sapUserId de la directora), lo que causaba que al
+// guardar la distribucion (que tambien escribe la porcion PERSONAL de la
+// directora en Target) se pisara la meta de unidad recien asignada, y
+// viceversa (bug reportado 25-ago-2026, caso Carmen Garcia: meta de unidad
+// 50,000 se convertia en 12,500 al guardar distribucion). Target ahora es
+// exclusivamente la meta INDIVIDUAL de cada miembro (incluida la porcion
+// personal de la directora dentro de su propia distribucion); UnitTarget es
+// exclusivamente el numero que el Super Admin asigna a la unidad completa.
+model UnitTarget {
+  id           String   @id @default(cuid())
+  directoraId  String               // sapUserId de la directora
+  directora    User     @relation(fields: [directoraId], references: [sapUserId])
+  month        Int
+  year         Int
+  targetAmount Decimal  @db.Decimal(18, 2)
+  currency     String   @default("DOP")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([directoraId, month, year])
+  @@index([directoraId])
+  @@map("unit_targets")
 }
 
 

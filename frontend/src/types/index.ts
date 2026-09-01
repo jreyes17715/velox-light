@@ -6,6 +6,7 @@ export interface User {
   role: 'directora' | 'consultora' | 'diq' | 'iniciadora';
   unitName: string | null;
   isSuperAdmin: boolean;
+  status?: string | null;
   supervisorId: string | null;
   subordinates: { id: string; name: string; sapUserId: string }[];
 }
@@ -31,6 +32,7 @@ export interface SubordinateData {
   targetAmount: number;
   achievementPercent: number;
   salesCount: number;
+  status?: string | null;
 }
 
 export interface Sale {

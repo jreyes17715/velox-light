@@ -3,6 +3,7 @@ import { Layout } from '../components/Layout/Layout';
 import { SalesDetailModal } from '../components/Sales/SalesDetailModal';
 import { LoadingSpinner } from '../components/Common/LoadingSpinner';
 import { ErrorAlert } from '../components/Common/ErrorAlert';
+import { StatusBadge, STATUS_BADGE_ENABLED } from '../components/Common/StatusBadge';
 import api from '../utils/api';
 import { SubordinateData } from '../types';
 import { formatCurrency, formatPercent } from '../utils/formatters';
@@ -28,8 +29,11 @@ export function ConsultorasPage() {
     setIsLoading(true);
     setError(null);
     try {
+      // limit alto a proposito -- ver comentario en DashboardPage.tsx (bug real
+      // 25-ago-2026: limit=100 truncaba silenciosamente unidades con mas de 100
+      // consultoras, ej. caso Lucero/Carmen Santiago con 146 subordinadas).
       const { data } = await api.get<{ data: SubordinateData[] }>(
-        `/dashboard/subordinates?month=${month}&year=${year}&limit=100`
+        `/dashboard/subordinates?month=${month}&year=${year}&limit=1000`
       );
       setConsultoras(data.data);
     } catch {
@@ -137,6 +141,7 @@ export function ConsultorasPage() {
                       Avance {sortKey === 'achievementPercent' ? (sortAsc ? '↑' : '↓') : ''}
                     </th>
                     <th className="text-center px-5 py-3">Estado</th>
+                    {STATUS_BADGE_ENABLED && <th className="text-center px-5 py-3">Estatus SAP</th>}
                     <th className="text-center px-5 py-3">Pedidos</th>
                     <th className="text-center px-5 py-3">Detalle</th>
                   </tr>
@@ -174,6 +179,11 @@ export function ConsultorasPage() {
                             {status.label}
                           </span>
                         </td>
+                        {STATUS_BADGE_ENABLED && (
+                          <td className="px-5 py-3 text-center">
+                            <StatusBadge status={c.status} />
+                          </td>
+                        )}
                         <td className="px-5 py-3 text-center text-gray-600">{c.salesCount}</td>
                         <td className="px-5 py-3 text-center">
                           <button

@@ -155,7 +155,11 @@ router.get('/overview', authenticateJWT, async (req: AuthRequest, res: Response)
       })
       .slice(0, 5);
 
-    const metasAgg = await prisma.target.aggregate({
+    // "Total Metas" = suma de metas de UNIDAD asignadas por Super Admin (no la
+    // suma de Target, que ahora son las metas individuales resultantes de
+    // distribuir esa meta -- sumarlas daria numeros inconsistentes segun si
+    // cada directora ya distribuyo o no. Ver comentario en schema.prisma).
+    const metasAgg = await prisma.unitTarget.aggregate({
       where: { month, year },
       _sum: { targetAmount: true },
     });
@@ -465,8 +469,12 @@ router.get('/metas', authenticateJWT, async (req: AuthRequest, res: Response) =>
     });
 
     const grupos = await Promise.all(directoras.map(async (d) => {
-      const dirTarget = await prisma.target.findUnique({
-        where: { userId_month_year: { userId: d.sapUserId, month, year } },
+      // Meta de UNIDAD -- vive en UnitTarget, no en Target (ver comentario en
+      // schema.prisma). "Meta Directora" en esta tabla es el numero que el
+      // Super Admin le asigno a toda la unidad, no la meta personal de la
+      // directora dentro de su propia distribucion.
+      const dirTarget = await prisma.unitTarget.findUnique({
+        where: { directoraId_month_year: { directoraId: d.sapUserId, month, year } },
       });
 
       const miembros = await Promise.all(d.subordinates.map(async (s) => {
@@ -511,13 +519,31 @@ router.put('/metas', authenticateJWT, async (req: AuthRequest, res: Response) =>
       return res.status(400).json({ error: 'month, year, targets required' });
     }
 
-    const ops = targets.map(t =>
-      prisma.target.upsert({
+    // El campo "Meta Directora" de este panel es la meta de UNIDAD (asignada
+    // por Super Admin), NO la meta personal de la directora -- esas van a
+    // tablas distintas para no pisarse entre si (ver schema.prisma). Se
+    // distingue consultando el role real de cada sapUserId recibido.
+    const sapIds = targets.map(t => t.sapUserId);
+    const users = await prisma.user.findMany({
+      where: { sapUserId: { in: sapIds } },
+      select: { sapUserId: true, role: true },
+    });
+    const roleMap = new Map(users.map(u => [u.sapUserId, u.role]));
+
+    const ops = targets.map(t => {
+      if (roleMap.get(t.sapUserId) === 'directora') {
+        return prisma.unitTarget.upsert({
+          where:  { directoraId_month_year: { directoraId: t.sapUserId, month, year } },
+          create: { directoraId: t.sapUserId, month, year, targetAmount: t.amount, currency: 'DOP' },
+          update: { targetAmount: t.amount },
+        });
+      }
+      return prisma.target.upsert({
         where:  { userId_month_year: { userId: t.sapUserId, month, year } },
         create: { userId: t.sapUserId, month, year, targetAmount: t.amount, currency: 'DOP' },
         update: { targetAmount: t.amount },
-      })
-    );
+      });
+    });
 
     await prisma.$transaction(ops);
     res.json({ ok: true, updated: targets.length });
@@ -634,7 +660,7 @@ router.get('/consultoras', authenticateJWT, async (req: AuthRequest, res: Respon
         isSuperAdmin: false,
       },
       select: {
-        id: true, sapUserId: true, name: true, role: true, unitName: true,
+        id: true, sapUserId: true, name: true, role: true, unitName: true, status: true,
         supervisor: { select: { name: true, unitName: true } },
       },
       orderBy: { name: 'asc' },
@@ -651,6 +677,7 @@ router.get('/consultoras', authenticateJWT, async (req: AuthRequest, res: Respon
         unidad: u.unitName ?? u.supervisor?.unitName ?? u.supervisor?.name ?? '—',
         ventas: Number(r._sum.amount ?? 0),
         pedidos: r._count.id,
+        status: u.status ?? null,
       };
     }));
 

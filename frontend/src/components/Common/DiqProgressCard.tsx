@@ -121,7 +121,7 @@ export function DiqProgressCard({ diq }: { diq: DiqProgress }) {
 
       {!todoOk && (
         <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Que le falta</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tus objetivos</p>
           {!kpis.produccion.cumpleTodosLosMeses && (
             <p className="text-xs text-gray-600">
               <I icon="fa-solid fa-circle-exclamation" className="text-amber-500 mr-1" />

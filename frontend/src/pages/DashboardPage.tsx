@@ -433,7 +433,14 @@ function DirectoraDashboard() {
     try {
       const [ov, subsRes, salesRes] = await Promise.all([
         api.get<OverviewData>('/dashboard/overview', { params: { month, year } }),
-        api.get<{ data: SubordinateData[] }>('/dashboard/subordinates', { params: { month, year, limit: 100 } }),
+        // limit alto a proposito -- esta vista no tiene paginacion en UI (se
+        // ordena/filtra todo client-side), asi que el "limit" del backend solo
+        // debe evitar traer un numero absurdo de registros, no truncar
+        // silenciosamente unidades grandes. Bug real detectado 25-ago-2026:
+        // con limit=100 una directora con 146 subordinadas perdia 46 de la
+        // lista "Mis Consultoras" y del grafico, aunque si aparecian en el
+        // ranking del /overview (que no tiene ese cap).
+        api.get<{ data: SubordinateData[] }>('/dashboard/subordinates', { params: { month, year, limit: 1000 } }),
         api.get<{ data: Sale[] }>('/sales', { params: { limit: 200 } }),
       ]);
       setOverview(ov.data);
@@ -515,7 +522,7 @@ function DirectoraDashboard() {
                 label="Producción Total de Unidad" value={fmt(ov.unitTotalSales)}
                 compareLabel="vs. mes anterior" delta={deltaPct(ov.unitTotalSales, ov.lastMonthUnitSales)} />
               <KpiCard icon="fa-solid fa-bag-shopping" iconBg="bg-pink-100" iconColor="text-pink-600"
-                label="Ventas del Mes (Grupo)" value={fmt(ov.groupTotalSales)}
+                label="Producción Total (Consultoras)" value={fmt(ov.groupTotalSales)}
                 compareLabel="vs. mes anterior" delta={deltaPct(ov.groupTotalSales, ov.lastMonthGroupSales)} />
               <KpiCard icon="fa-solid fa-user-group" iconBg="bg-blue-100" iconColor="text-blue-600"
                 label="Consultoras Activas" value={`${ov.consultorasActivas} / ${ov.subordinateCount}`}
@@ -543,13 +550,13 @@ function DirectoraDashboard() {
                   <div className="lg:col-span-2">
                     <ProduccionPorConsultora subordinates={subordinates} />
                   </div>
-                  <AvanceGauge produccion={ov.groupTotalSales} meta={ov.groupTargetAmount} label="Avance General Grupo" />
+                  <AvanceGauge produccion={ov.unitTotalSales} meta={ov.unitTargetAmount} label="Avance General Grupo" />
                   <RankingConsultoras personas={ov.consultoraRanking} />
                 </div>
 
                 {/* Termometro + resumen */}
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                  <Termometro produccion={ov.groupTotalSales} meta={ov.groupTargetAmount} month={month} year={year} label="Termometro de Grupo" />
+                  <Termometro produccion={ov.unitTotalSales} meta={ov.unitTargetAmount} month={month} year={year} label="Termometro de Grupo" />
                   <div className="lg:col-span-3 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Resumen del Grupo - {MONTHS[month - 1]} {year}</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

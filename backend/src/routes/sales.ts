@@ -13,8 +13,12 @@ router.get('/', authenticateJWT, async (req: AuthRequest, res: Response) => {
 
     const targetUserId = userId || user.sapUserId;
 
-    // Verificar autorización: solo puede ver sus propias ventas o de sus subordinadas
-    if (targetUserId !== user.sapUserId) {
+    // Verificar autorización: solo puede ver sus propias ventas, las de sus
+    // subordinadas, o cualquiera si es superadmin (agregado 12-ago-2026 al
+    // mover el historial de ventas a la pestaña "Ventas y Producción" dentro
+    // de Mi Perfil -- superadmin puede ver el perfil de cualquier usuario via
+    // /profile/:userId, pero esta ruta no tenia el mismo bypass).
+    if (targetUserId !== user.sapUserId && !user.isSuperAdmin) {
       const isSubordinate = user.subordinates.some((s) => s.sapUserId === targetUserId);
       if (!isSubordinate) {
         res.status(403).json({ error: 'Forbidden: cannot access this user data' });

@@ -35,6 +35,11 @@ export interface SapBusinessPartner {
   // Acosta (SF-00001): U_nivel_cliente="Directora" pero U_Tipo=null y sin grupo
   // SAP asignado todavia.
   U_nivel_cliente?: string | null;
+  // Estatus informativo de la consultora/directora (agregado 24-ago-2026),
+  // valores posibles: A1/A2/A3 (activa), B1/B2/B3 (?), T1/T2/T3 (?) -- por
+  // ahora es solo informativo, se muestra como tag de color en el frontend
+  // (verde=A*, naranja=B*, rojo=T*). No se usa en ningun calculo todavia.
+  U_Status?: string | null;
 }
 
 export interface SapBusinessPartnerGroup {
@@ -111,7 +116,7 @@ export async function fetchAllBusinessPartners(): Promise<SapBusinessPartner[]> 
   while (true) {
     pagina++;
     const data = await sapGet<SapListResponse<SapBusinessPartner>>('/BusinessPartners', {
-      $select: 'CardCode,CardName,EmailAddress,GroupCode,U_Tipo,U_CodIni,U_NomIni,U_DIQ,U_nivel_cliente,U_FechaIniD,U_FechaFinD,U_estado_consultora',
+      $select: 'CardCode,CardName,EmailAddress,GroupCode,U_Tipo,U_CodIni,U_NomIni,U_DIQ,U_nivel_cliente,U_FechaIniD,U_FechaFinD,U_estado_consultora,U_Status',
       $filter: "CardType eq 'cCustomer'",
       // $orderby explicito -- sin esto, SAP no garantiza orden estable entre
       // paginas y la paginacion por $skip puede saltarse registros si hay
@@ -246,8 +251,12 @@ export async function fetchOrdersSince(sinceDate: Date): Promise<SapOrder[]> {
 }
 
 export async function fetchAllOrders(): Promise<SapOrder[]> {
+  // Ampliado de 6 a 12 meses (confirmado 12-ago-2026, caso Karen Marinel
+  // Suarez M00329: orden del 11-dic-2025 nunca se sincronizaba porque caia
+  // fuera de la ventana de 6 meses). Padrino confirmo que 12 meses no deberia
+  // impactar mucho el rendimiento dado el volumen actual.
   const since = new Date();
-  since.setMonth(since.getMonth() - 6);
+  since.setMonth(since.getMonth() - 12);
   return fetchOrdersSince(since);
 }
 
@@ -293,7 +302,8 @@ export async function fetchCreditNotesSince(sinceDate: Date): Promise<SapCreditN
 }
 
 export async function fetchAllCreditNotes(): Promise<SapCreditNote[]> {
+  // Ampliado a 12 meses igual que fetchAllOrders -- ver comentario ahi.
   const since = new Date();
-  since.setMonth(since.getMonth() - 6);
+  since.setMonth(since.getMonth() - 12);
   return fetchCreditNotesSince(since);
 }

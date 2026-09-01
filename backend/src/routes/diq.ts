@@ -48,8 +48,21 @@ export async function calcDIQKPIs(diqUserId: string, startDate: Date, endDate: D
   // KPI 1b: Nuevas iniciaciones desde startDate
   const nuevasIniciaciones = reclutas.filter(r => r.createdAt >= startDate).length;
 
-  // KPI 2: Producción acumulada (DIQ + sus reclutas) desde startDate hasta endDate
-  const sapIds = [user.sapUserId, ...reclutas.map(r => r.sapUserId)];
+  // KPI 2: Producción acumulada (DIQ + reclutas nivel 1 + reclutas nivel 2)
+  // desde startDate hasta endDate. Confirmado por Padrino 12-ago-2026: antes
+  // solo se contaba nivel 1 (reclutas directas de la DEC) -- se agrega nivel 2
+  // (reclutas de sus reclutas) para que la meta de producción de la DEC
+  // refleje toda su célula, igual que ya hace la vista "Ventas y Producción"
+  // (ex Mis Iniciadoras) para directoras. Esto NO cambia KPI 1/1a/1b (consultoras
+  // y nuevas iniciaciones), que siguen siendo solo nivel 1 -- esas metas son
+  // sobre reclutamiento personal de la DEC, no de produccion.
+  const reclutasNivel2 = reclutas.length > 0
+    ? await prisma.user.findMany({
+        where: { inciadoraId: { in: reclutas.map(r => r.id) } },
+        select: { sapUserId: true },
+      })
+    : [];
+  const sapIds = [user.sapUserId, ...reclutas.map(r => r.sapUserId), ...reclutasNivel2.map(r => r.sapUserId)];
   const produccionResult = await prisma.sale.aggregate({
     where: {
       userId: { in: sapIds },

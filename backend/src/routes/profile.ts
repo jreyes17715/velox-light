@@ -15,19 +15,20 @@ interface ProfileTarget {
   unitName: string | null;
   isSuperAdmin: boolean;
   supervisorId: string | null;
+  status?: string | null;
 }
 
 async function getSubordinatesFor(targetUser: { id: string; role: string }) {
   if (targetUser.role === 'iniciadora') {
     return prisma.user.findMany({
       where: { inciadoraId: targetUser.id },
-      select: { id: true, name: true, sapUserId: true, role: true },
+      select: { id: true, name: true, sapUserId: true, role: true, status: true },
       orderBy: { name: 'asc' },
     });
   }
   return prisma.user.findMany({
     where: { supervisorId: targetUser.id },
-    select: { id: true, name: true, sapUserId: true, role: true },
+    select: { id: true, name: true, sapUserId: true, role: true, status: true },
     orderBy: { name: 'asc' },
   });
 }
@@ -80,7 +81,7 @@ async function buildProfileData(targetUser: ProfileTarget) {
   // Reclutas (si es iniciadora/diq con reclutas personales)
   const reclutas = await prisma.user.findMany({
     where: { inciadoraId: targetUser.id },
-    select: { name: true, sapUserId: true, role: true },
+    select: { name: true, sapUserId: true, role: true, status: true },
     orderBy: { name: 'asc' },
   });
 
@@ -141,6 +142,7 @@ async function buildProfileData(targetUser: ProfileTarget) {
       role:         targetUser.role,
       unitName:     targetUser.unitName,
       isSuperAdmin: targetUser.isSuperAdmin,
+      status:       targetUser.status ?? null,
     },
     mesActual: {
       month, year,
@@ -157,6 +159,7 @@ async function buildProfileData(targetUser: ProfileTarget) {
       name:      s.name,
       sapUserId: s.sapUserId,
       role:      s.role,
+      status:    s.status ?? null,
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     creditNotes: creditNotes.map((n: any) => ({

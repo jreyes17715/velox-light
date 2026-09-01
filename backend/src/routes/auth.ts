@@ -81,6 +81,7 @@ router.post('/me', authenticateJWT, (req: AuthRequest, res: Response) => {
     role: user.role,
     unitName: user.unitName,
     isSuperAdmin: user.isSuperAdmin,
+    status: user.status,
     supervisorId: user.supervisorId,
     subordinates: user.subordinates.map((s) => ({
       id: s.id,

@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import api from '../utils/api';
+import { StatusBadge, STATUS_BADGE_ENABLED } from '../components/Common/StatusBadge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ interface IniciadoraRow {
 interface IniciadorasResponse { month: number; year: number; iniciadoras: IniciadoraRow[]; }
 interface ConsultoraRow {
   id: string; sapUserId: string; name: string; role: string;
-  unidad: string; ventas: number; pedidos: number;
+  unidad: string; ventas: number; pedidos: number; status?: string | null;
 }
 interface ConsultorasResponse { month: number; year: number; consultoras: ConsultoraRow[]; }
 
@@ -1019,6 +1020,7 @@ function ConsultorasPanel({ month, year }: { month: number; year: number }) {
                 <th className="px-4 py-3 text-left">Nombre</th>
                 <th className="px-4 py-3 text-left">Rol</th>
                 <th className="px-4 py-3 text-left">Unidad</th>
+                {STATUS_BADGE_ENABLED && <th className="px-4 py-3 text-center">Estatus</th>}
                 <th className="px-4 py-3 text-right">Ventas del mes</th>
                 <th className="px-4 py-3 text-center">Perfil</th>
               </tr>
@@ -1040,6 +1042,11 @@ function ConsultorasPanel({ month, year }: { month: number; year: number }) {
                   </td>
                   <td className="px-4 py-3">{roleBadge(c.role)}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{c.unidad}</td>
+                  {STATUS_BADGE_ENABLED && (
+                    <td className="px-4 py-3 text-center">
+                      <StatusBadge status={c.status} />
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-right font-medium text-gray-700">{c.ventas > 0 ? fmt(c.ventas) : '-'}</td>
                   <td className="px-4 py-3 text-center">
                     <button onClick={() => navigate(`/perfil/${c.id}`)}
@@ -1050,7 +1057,7 @@ function ConsultorasPanel({ month, year }: { month: number; year: number }) {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">Sin resultados</td></tr>
+                <tr><td colSpan={STATUS_BADGE_ENABLED ? 7 : 6} className="px-4 py-12 text-center text-gray-400">Sin resultados</td></tr>
               )}
             </tbody>
           </table>

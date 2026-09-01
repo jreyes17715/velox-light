@@ -226,6 +226,71 @@ router.get('/diag/user/:sapUserId', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/admin/diag/red/:sapUserId — diagnóstico read-only: arma el árbol de
+// reclutas (inciadoraId) de una persona hasta 4 niveles de profundidad, con la
+// producción individual de cada quien en el período indicado (o el de su DIQ
+// activa si no se pasan fechas). Sirve para comparar contra reportes oficiales
+// de SAP tipo "Calificacion DIQ" y ver hasta que nivel llega la diferencia.
+router.get('/diag/red/:sapUserId', async (req: Request, res: Response) => {
+  const sapUserId = req.params.sapUserId as string;
+  try {
+    const user = await prisma.user.findUnique({ where: { sapUserId }, select: { id: true, sapUserId: true, name: true } });
+    if (!user) { res.status(404).json({ error: `Usuario ${sapUserId} no encontrado en nuestra base` }); return; }
+
+    let gte: Date, lt: Date;
+    if (req.query.startDate && req.query.endDate) {
+      gte = new Date(req.query.startDate as string);
+      lt  = new Date(req.query.endDate as string);
+    } else {
+      const diq = await prisma.dIQ.findUnique({ where: { userId: user.id }, select: { startDate: true, endDate: true } });
+      if (!diq) { res.status(400).json({ error: 'No tiene DIQ activa -- pasa ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD' }); return; }
+      gte = diq.startDate;
+      lt  = diq.endDate;
+    }
+
+    // Nivel 1, 2, 3 y 4 -- por si el reporte de SAP llega mas profundo de lo esperado
+    const nivel1 = await prisma.user.findMany({ where: { inciadoraId: user.id }, select: { id: true, sapUserId: true, name: true } });
+    const nivel2 = nivel1.length ? await prisma.user.findMany({ where: { inciadoraId: { in: nivel1.map(n => n.id) } }, select: { id: true, sapUserId: true, name: true } }) : [];
+    const nivel3 = nivel2.length ? await prisma.user.findMany({ where: { inciadoraId: { in: nivel2.map(n => n.id) } }, select: { id: true, sapUserId: true, name: true } }) : [];
+    const nivel4 = nivel3.length ? await prisma.user.findMany({ where: { inciadoraId: { in: nivel3.map(n => n.id) } }, select: { id: true, sapUserId: true, name: true } }) : [];
+
+    const todos = [
+      { ...user, nivel: 0 },
+      ...nivel1.map(n => ({ ...n, nivel: 1 })),
+      ...nivel2.map(n => ({ ...n, nivel: 2 })),
+      ...nivel3.map(n => ({ ...n, nivel: 3 })),
+      ...nivel4.map(n => ({ ...n, nivel: 4 })),
+    ];
+
+    const produccion = await prisma.sale.groupBy({
+      by: ['userId'],
+      where: { userId: { in: todos.map(t => t.sapUserId) }, saleDate: { gte, lte: lt }, status: { not: 'cancelled' } },
+      _sum: { amount: true },
+    });
+    const prodMap = new Map(produccion.map(p => [p.userId, Number(p._sum.amount ?? 0)]));
+
+    const detalle = todos.map(t => ({
+      nivel: t.nivel,
+      sapUserId: t.sapUserId,
+      name: t.name,
+      produccion: prodMap.get(t.sapUserId) ?? 0,
+    }));
+
+    res.json({
+      periodo: { gte, lt },
+      totalPersonas: detalle.length,
+      totalProduccion: detalle.reduce((s, d) => s + d.produccion, 0),
+      porNivel: {
+        nivel1: nivel1.length, nivel2: nivel2.length, nivel3: nivel3.length, nivel4: nivel4.length,
+      },
+      detalle: detalle.sort((a, b) => a.nivel - b.nivel || b.produccion - a.produccion),
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: msg });
+  }
+});
+
 // Patrón de CardCode temporal que SAP/WordPress asigna al momento del
 // registro, antes de aprobar y convertir al CardCode definitivo (ej. "C01318").
 // Confirmado 11-ago-2026 con casos reales: "CA-202607222334", "CA-202608122455".

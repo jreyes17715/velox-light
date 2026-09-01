@@ -2,12 +2,21 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import api from '../../utils/api';
+import { StatusBadge } from '../Common/StatusBadge';
 
 const ALL_NAV_ITEMS: { to: string; label: string; icon: string; roles: string[] }[] = [
   { to: '/dashboard',        label: 'Dashboard General',   icon: 'grid',    roles: ['directora', 'consultora', 'diq', 'iniciadora', 'superadmin'] },
-  { to: '/sales',            label: 'Ventas y Produccion', icon: 'chart',   roles: ['directora', 'consultora', 'diq', 'iniciadora', 'superadmin'] },
+  // "Ventas y Produccion" (reporte global) se movio a solo superadmin -- para
+  // el resto de roles el historial de ventas propio ahora vive dentro de "Mi
+  // Perfil" (pestaña nueva). Ver PerfilPage.tsx. Confirmado 12-ago-2026.
+  { to: '/sales',            label: 'Ventas y Produccion', icon: 'chart',   roles: ['superadmin'] },
   { to: '/consultoras',      label: 'Consultoras',          icon: 'group',   roles: ['directora', 'diq', 'iniciadora'] },
-  { to: '/mis-iniciadoras',  label: 'Mis Iniciadoras',      icon: 'star',    roles: ['directora', 'diq'] },
+  // Mismo destino/funcion que antes (celulas de reclutas), solo se le cambio
+  // el nombre a "Ventas y Produccion" a pedido de Padrino (12-ago-2026).
+  { to: '/mis-iniciadoras',  label: 'Ventas y Produccion',  icon: 'star',    roles: ['directora', 'diq'] },
+  // Comisiones oculta de nuevo a pedido de Padrino (25-ago-2026) -- la ruta y
+  // pagina siguen existiendo, solo se quita del menu.
+  // { to: '/comisiones',    label: 'Comisiones',           icon: 'money',   roles: ['directora', 'consultora', 'diq', 'iniciadora'] },
   { to: '/llave-rosa',       label: 'Llave Rosa',           icon: 'car',     roles: ['directora', 'superadmin'] },
   { to: '/metas',            label: 'Metas',                icon: 'target',  roles: ['directora', 'diq', 'iniciadora'] },
   { to: '/superadmin/metas', label: 'Metas',                icon: 'target',  roles: ['superadmin'] },
@@ -26,6 +35,7 @@ const FA_ICONS: Record<string, string> = {
   settings: 'fa-solid fa-gear',
   crown:    'fa-solid fa-crown',
   car:      'fa-solid fa-car-side',
+  money:    'fa-solid fa-sack-dollar',
   logout:   'fa-solid fa-right-from-bracket',
 };
 
@@ -217,6 +227,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <i className={`fa-solid fa-pen-to-square text-xs opacity-0 group-hover:opacity-100 transition-opacity ${theme.userSubtext}`} aria-hidden="true" />
                   </button>
                 )
+              )}
+              {user.status && (
+                <div className="mt-1.5">
+                  <StatusBadge status={user.status} variant="bubble" />
+                </div>
               )}
             </div>
           </div>

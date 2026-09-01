@@ -130,6 +130,7 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
               name: bp.CardName,
               email: bp.EmailAddress || existing.email,
               role,
+              status: bp.U_Status ?? null,
               // Solo sobreescribir unitName si SAP lo trae y el usuario no lo personalizó
               ...(sapUnitName && !existing.unitName ? { unitName: sapUnitName } : {}),
               lastSapSync: new Date(),
@@ -143,6 +144,7 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
               data: {
                 name: bp.CardName,
                 role,
+                status: bp.U_Status ?? null,
                 ...(sapUnitName && !existing.unitName ? { unitName: sapUnitName } : {}),
                 lastSapSync: new Date(),
               },
@@ -158,6 +160,7 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
               name: bp.CardName,
               email: bp.EmailAddress || null,
               role,
+              status: bp.U_Status ?? null,
               unitName: sapUnitName ?? null,
               lastSapSync: new Date(),
             },
@@ -171,6 +174,7 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
                 name: bp.CardName,
                 email: null,
                 role,
+                status: bp.U_Status ?? null,
                 unitName: sapUnitName ?? null,
                 lastSapSync: new Date(),
               },
@@ -290,26 +294,37 @@ export async function syncUsers(): Promise<{ created: number; updated: number; s
     const conIni = partners.filter(bp => bp.U_CodIni);
     logger.info(`SYNC DEBUG: ${conIni.length} BPs tienen U_CodIni. Ejemplos: ${conIni.slice(0, 5).map(bp => `${bp.CardCode}→${bp.U_CodIni}`).join(', ')}`);
 
+    let iniciadoraNoEncontrada = 0;
     for (const bp of partners) {
       if (!bp.U_CodIni) continue;
 
+      // findFirst + mode: 'insensitive' -- igual que el fix de login (auth.ts,
+      // caso YISSEL RUIZ PIMENTEL / YR-00001): U_CodIni a veces viene con
+      // mayusculas/minusculas distintas al CardCode real guardado en nuestra
+      // base, y un findUnique exacto no los encontraba, dejando a la recluta
+      // sin iniciadora asignada aunque SAP si tuviera la relacion (confirmado
+      // 12-ago-2026, reportado por Padrino).
       const [user, iniciadora] = await Promise.all([
-        prisma.user.findUnique({ where: { sapUserId: bp.CardCode }, select: { id: true, inciadoraId: true } }),
-        prisma.user.findUnique({ where: { sapUserId: bp.U_CodIni }, select: { id: true } }),
+        prisma.user.findFirst({ where: { sapUserId: { equals: bp.CardCode, mode: 'insensitive' } }, select: { id: true, inciadoraId: true } }),
+        prisma.user.findFirst({ where: { sapUserId: { equals: bp.U_CodIni, mode: 'insensitive' } }, select: { id: true } }),
       ]);
 
       if (!user || !iniciadora) {
+        iniciadoraNoEncontrada++;
         logger.debug(`SYNC: iniciadora no encontrada para ${bp.CardCode} (U_CodIni=${bp.U_CodIni})`);
         continue;
       }
       if (user.inciadoraId === iniciadora.id) continue; // sin cambio
 
       await prisma.user.update({
-        where: { sapUserId: bp.CardCode },
+        where: { id: user.id },
         data: { inciadoraId: iniciadora.id },
       });
       inciadorasAssigned++;
       logger.debug(`SYNC: ${bp.CardCode} → iniciadora ${bp.U_CodIni}`);
+    }
+    if (iniciadoraNoEncontrada > 0) {
+      logger.info(`SYNC: ${iniciadoraNoEncontrada} BPs con U_CodIni pero sin match de usuario/iniciadora en nuestra base`);
     }
 
     logger.info(`SYNC: ${inciadorasAssigned} relaciones de iniciadora asignadas`);
