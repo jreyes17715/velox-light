@@ -54,7 +54,7 @@ export function SubordinatesTable({ data, unitName }: SubordinatesTableProps) {
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
                 <th className="text-left px-5 py-3">Nombre</th>
-                <th className="text-right px-5 py-3">Ventas</th>
+                <th className="text-right px-5 py-3">Compras</th>
                 <th className="text-right px-5 py-3">Meta</th>
                 <th className="text-left px-5 py-3 min-w-40">Avance</th>
                 <th className="text-center px-5 py-3">Estado</th>
@@ -97,7 +97,7 @@ export function SubordinatesTable({ data, unitName }: SubordinatesTableProps) {
                       onClick={() => setSelectedUserId(row.sapUserId)}
                       className="text-pink-600 hover:text-pink-800 text-xs font-medium bg-pink-50 hover:bg-pink-100 px-3 py-1 rounded-lg transition-colors"
                     >
-                      Ver ventas
+                      Ver compras
                     </button>
                   </td>
                 </tr>

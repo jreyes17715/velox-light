@@ -364,7 +364,7 @@ function BuscarPersona({ month, year }: { month: number; year: number }) {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { label: 'Ventas del Mes', value: fmt(selected.mesActual.ventas) },
+              { label: 'Compras del Mes', value: fmt(selected.mesActual.ventas) },
               { label: 'Pedidos', value: String(selected.mesActual.pedidos) },
               { label: 'Meta', value: selected.mesActual.meta > 0 ? fmt(selected.mesActual.meta) : '-' },
               { label: 'Cumplimiento', value: selected.mesActual.meta > 0 ? `${((selected.mesActual.ventas / selected.mesActual.meta) * 100).toFixed(1)}%` : '-' },
@@ -381,13 +381,13 @@ function BuscarPersona({ month, year }: { month: number; year: number }) {
               <div className="space-y-1 text-sm">
                 {selected.user.supervisor && <div className="flex justify-between"><span className="text-gray-500">Supervisora</span><span className="font-medium">{selected.user.supervisor.name}</span></div>}
                 <div className="flex justify-between"><span className="text-gray-500">Consultoras</span><span className="font-medium">{selected.user.subordinadasCount}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Reclutas</span><span className="font-medium">{selected.user.reclutasCount}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Asociadas</span><span className="font-medium">{selected.user.reclutasCount}</span></div>
               </div>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-2">Ultimas Ventas</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-2">Ultimas Compras</p>
               <div className="space-y-1 max-h-32 overflow-y-auto">
-                {selected.ultimasVentas.length === 0 && <p className="text-xs text-gray-400">Sin ventas</p>}
+                {selected.ultimasVentas.length === 0 && <p className="text-xs text-gray-400">Sin compras</p>}
                 {selected.ultimasVentas.map((v, i) => (
                   <div key={i} className="flex justify-between text-xs">
                     <span className="text-gray-500">{new Date(v.saleDate).toLocaleDateString('es-DO')}</span>
@@ -468,7 +468,7 @@ function VerUnidad({ month, year, unidades }: { month: number; year: number; uni
                   <tr>
                     <th className="px-4 py-3 text-center w-8">#</th>
                     <th className="px-4 py-3 text-left">Nombre</th>
-                    <th className="px-4 py-3 text-right">Ventas</th>
+                    <th className="px-4 py-3 text-right">Compras</th>
                     <th className="px-4 py-3 text-right">Pedidos</th>
                     <th className="px-4 py-3 text-right">Meta</th>
                     <th className="px-4 py-3 text-center">% Cumpl.</th>
@@ -604,7 +604,7 @@ function DirectorasPanel({ unidades, month, year }: { month: number; year: numbe
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 sticky top-0"><tr className="text-gray-500 text-xs uppercase border-b border-gray-100">
                       <th className="px-5 py-3 text-left">Nombre</th>
-                      <th className="px-5 py-3 text-right">Ventas</th>
+                      <th className="px-5 py-3 text-right">Compras</th>
                       <th className="px-5 py-3 text-right">Pedidos</th>
                       <th className="px-5 py-3 text-center">Avance</th>
                     </tr></thead>
@@ -842,9 +842,9 @@ function IniciadorasPanel({ month, year }: { month: number; year: number }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Iniciadoras',         value: totalIniciadoras.toString(),   icon: 'fa-solid fa-star',           bg: 'bg-purple-50',  color: 'text-purple-600' },
-          { label: 'Con reclutas',         value: totalConReclutas.toString(),   icon: 'fa-solid fa-users',          bg: 'bg-pink-50',    color: 'text-pink-600'   },
-          { label: 'Total reclutas',       value: totalReclutas.toString(),       icon: 'fa-solid fa-user-plus',     bg: 'bg-blue-50',    color: 'text-blue-600'   },
-          { label: 'Reclutas activas',     value: `${totalActivas} / ${totalReclutas}`, icon: 'fa-solid fa-circle-check', bg: 'bg-green-50', color: 'text-green-600' },
+          { label: 'Con asociadas',         value: totalConReclutas.toString(),   icon: 'fa-solid fa-users',          bg: 'bg-pink-50',    color: 'text-pink-600'   },
+          { label: 'Total asociadas',       value: totalReclutas.toString(),       icon: 'fa-solid fa-user-plus',     bg: 'bg-blue-50',    color: 'text-blue-600'   },
+          { label: 'Asociadas activas',     value: `${totalActivas} / ${totalReclutas}`, icon: 'fa-solid fa-circle-check', bg: 'bg-green-50', color: 'text-green-600' },
         ].map(c => (
           <div key={c.label} className={`${c.bg} rounded-xl p-4`}>
             <div className="flex items-center gap-2 mb-1">
@@ -857,7 +857,7 @@ function IniciadorasPanel({ month, year }: { month: number; year: number }) {
       </div>
 
       <div className="bg-purple-50 rounded-xl p-4 flex items-center justify-between">
-        <span className="text-sm text-purple-700 font-medium">Producción total de reclutas — {MONTHS[month - 1]} {year}</span>
+        <span className="text-sm text-purple-700 font-medium">Producción total de asociadas — {MONTHS[month - 1]} {year}</span>
         <span className="text-xl font-bold text-purple-900">{fmt(totalProduccion)}</span>
       </div>
 
@@ -871,9 +871,9 @@ function IniciadorasPanel({ month, year }: { month: number; year: number }) {
                 <th className="px-4 py-3 text-left">Iniciadora</th>
                 <th className="px-4 py-3 text-left">Rol</th>
                 <th className="px-4 py-3 text-left">Unidad</th>
-                <th className="px-4 py-3 text-right">Reclutas</th>
+                <th className="px-4 py-3 text-right">Asociadas</th>
                 <th className="px-4 py-3 text-right">Activas</th>
-                <th className="px-4 py-3 text-right">Producción reclutas</th>
+                <th className="px-4 py-3 text-right">Producción asociadas</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -910,7 +910,7 @@ function IniciadorasPanel({ month, year }: { month: number; year: number }) {
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="text-gray-500 uppercase">
-                                <th className="py-1 text-left pr-4">Recluta</th>
+                                <th className="py-1 text-left pr-4">Asociada</th>
                                 <th className="py-1 text-left pr-4">Rol</th>
                                 <th className="py-1 text-right pr-4">Pedidos</th>
                                 <th className="py-1 text-right">Producción</th>
@@ -1021,7 +1021,7 @@ function ConsultorasPanel({ month, year }: { month: number; year: number }) {
                 <th className="px-4 py-3 text-left">Rol</th>
                 <th className="px-4 py-3 text-left">Unidad</th>
                 {STATUS_BADGE_ENABLED && <th className="px-4 py-3 text-center">Estatus</th>}
-                <th className="px-4 py-3 text-right">Ventas del mes</th>
+                <th className="px-4 py-3 text-right">Compras del mes</th>
                 <th className="px-4 py-3 text-center">Perfil</th>
               </tr>
             </thead>
@@ -1149,12 +1149,12 @@ export default function SuperAdminPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <KpiCard
                 icon="fa-solid fa-bolt" iconBg="bg-yellow-100" iconColor="text-yellow-600"
-                label="Ventas del Dia" value={fmt(r.todaySales)}
+                label="Compras del Dia" value={fmt(r.todaySales)}
                 compareLabel="vs. ayer" delta={deltaPct(r.todaySales, r.yesterdaySales)}
               />
               <KpiCard
                 icon="fa-solid fa-bag-shopping" iconBg="bg-pink-100" iconColor="text-pink-600"
-                label="Ventas del Mes" value={fmt(r.totalBruta)}
+                label="Compras del Mes" value={fmt(r.totalBruta)}
                 compareLabel="vs. mes anterior" delta={deltaPct(r.totalBruta, r.lastMonthBruta)}
               />
               <KpiCard

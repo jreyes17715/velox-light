@@ -6,10 +6,11 @@
 // real es "I", no "B").
 
 // Interruptor temporal (25-ago-2026, a pedido de Padrino): oculta el badge en
-// toda la app sin borrar el trabajo ya hecho. Para reactivarlo, poner en true.
+// toda la app sin borrar el trabajo ya hecho. Reactivado el mismo dia al subir
+// a produccion la migracion de U_Status (campo "status" en User).
 // Se exporta para que las tablas que agregaron una columna "Estatus" tambien
 // puedan ocultar esa columna (encabezado incluido) mientras esto este apagado.
-export const STATUS_BADGE_ENABLED = false;
+export const STATUS_BADGE_ENABLED = true;
 const ENABLED = STATUS_BADGE_ENABLED;
 
 interface StatusBadgeProps {

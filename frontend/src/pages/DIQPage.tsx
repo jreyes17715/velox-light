@@ -279,7 +279,7 @@ export default function DIQPage() {
                   <div className="mt-5 pt-5 border-t border-gray-100 space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                       <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500">Total reclutas</p>
+                        <p className="text-xs text-gray-500">Total asociadas</p>
                         <p className="text-xl font-bold text-gray-800">{diq.kpis.consultoras.total}</p>
                       </div>
                       <div className="bg-gray-50 rounded-lg p-3">

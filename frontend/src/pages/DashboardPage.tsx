@@ -208,7 +208,7 @@ function ProduccionPorConsultora({ subordinates }: { subordinates: SubordinateDa
 function SalesLineChart({ data }: { data: { date: string; amount: number }[] }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Ventas Personales - Ultimos 30 dias</p>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Compras Personales - Ultimos 30 dias</p>
       <ResponsiveContainer width="100%" height={160}>
         <LineChart data={data} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -279,7 +279,7 @@ function TablaConsultoras({ subordinates }: { subordinates: SubordinateData[] })
             <tr>
               <th className="px-4 py-3 text-center w-8">#</th>
               <th className="px-4 py-3 text-left">Nombre</th>
-              <th className="px-4 py-3 text-right">Ventas</th>
+              <th className="px-4 py-3 text-right">Compras</th>
               <th className="px-4 py-3 text-right">Pedidos</th>
               <th className="px-4 py-3 text-right">Meta</th>
               <th className="px-4 py-3 text-center">Avance</th>
@@ -389,10 +389,10 @@ function ConsultoraDashboard() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <KpiCard icon="fa-solid fa-bolt" iconBg="bg-yellow-100" iconColor="text-yellow-600"
-                label="Ventas del Dia" value={fmt(ov.todaySales)}
+                label="Compras del Dia" value={fmt(ov.todaySales)}
                 compareLabel="vs. ayer" delta={deltaPct(ov.todaySales, ov.yesterdaySales)} />
               <KpiCard icon="fa-solid fa-bag-shopping" iconBg="bg-pink-100" iconColor="text-pink-600"
-                label="Ventas del Mes" value={fmt(ov.totalSales)}
+                label="Compras del Mes" value={fmt(ov.totalSales)}
                 compareLabel="vs. mes anterior" delta={deltaPct(ov.totalSales, ov.lastMonthSales)} />
               <KpiCard icon="fa-solid fa-bullseye" iconBg="bg-purple-100" iconColor="text-purple-600"
                 label="% Cumplimiento" value={`${ov.achievementPercent.toFixed(1)}%`}
@@ -476,7 +476,7 @@ function DirectoraDashboard() {
 
   const TABS = [
     { key: 'grupo'    as const, icon: 'fa-solid fa-users',         label: 'Vista Grupo'    },
-    { key: 'personal' as const, icon: 'fa-solid fa-circle-user',   label: 'Mis Ventas'     },
+    { key: 'personal' as const, icon: 'fa-solid fa-circle-user',   label: 'Mis Compras'     },
   ];
 
   return (
@@ -513,7 +513,7 @@ function DirectoraDashboard() {
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <KpiCard icon="fa-solid fa-bolt" iconBg="bg-yellow-100" iconColor="text-yellow-600"
-                label="Ventas del Dia" value={fmt(ov.todaySales)}
+                label="Compras del Dia" value={fmt(ov.todaySales)}
                 compareLabel="vs. ayer" delta={deltaPct(ov.todaySales, ov.yesterdaySales)} />
               {/* Producción total de unidad (directora + grupo) -- "Ventas del Mes
                   (Grupo)" de al lado a propósito NO incluye la producción personal
@@ -585,10 +585,10 @@ function DirectoraDashboard() {
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <KpiCard icon="fa-solid fa-bolt" iconBg="bg-yellow-100" iconColor="text-yellow-600"
-                    label="Mis Ventas Hoy" value={fmt(ov.todaySales)}
+                    label="Mis Compras Hoy" value={fmt(ov.todaySales)}
                     compareLabel="vs. ayer" delta={deltaPct(ov.todaySales, ov.yesterdaySales)} />
                   <KpiCard icon="fa-solid fa-bag-shopping" iconBg="bg-pink-100" iconColor="text-pink-600"
-                    label="Mis Ventas del Mes" value={fmt(ov.totalSales)}
+                    label="Mis Compras del Mes" value={fmt(ov.totalSales)}
                     compareLabel="vs. mes anterior" delta={deltaPct(ov.totalSales, ov.lastMonthSales)} />
                   <KpiCard icon="fa-solid fa-bullseye" iconBg="bg-purple-100" iconColor="text-purple-600"
                     label="Mi Cumplimiento" value={`${ov.achievementPercent.toFixed(1)}%`}

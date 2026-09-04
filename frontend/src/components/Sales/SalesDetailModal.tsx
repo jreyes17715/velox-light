@@ -82,7 +82,7 @@ export function SalesDetailModal({ userId, isOpen, onClose, month, year }: Sales
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-800">Detalle de Ventas</h2>
+          <h2 className="font-semibold text-gray-800">Detalle de Compras</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">x</button>
         </div>
 
@@ -130,7 +130,7 @@ export function SalesDetailModal({ userId, isOpen, onClose, month, year }: Sales
             <div className="flex items-center justify-center py-12 text-gray-400">Cargando...</div>
           ) : sales.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400 gap-1">
-              <span>Sin ventas en el periodo</span>
+              <span>Sin compras en el periodo</span>
               <span className="text-xs">
                 {startDate && endDate ? `${startDate} al ${endDate}` : 'ninguna encontrada'}
               </span>
@@ -150,7 +150,14 @@ export function SalesDetailModal({ userId, isOpen, onClose, month, year }: Sales
                   const st = statusLabel[sale.status] || { label: sale.status, color: '' };
                   return (
                     <tr key={sale.id} className="hover:bg-gray-50">
-                      <td className="px-5 py-3 font-mono text-gray-700">{sale.sapOrderId}</td>
+                      <td className="px-5 py-3 font-mono text-gray-700">
+                        {sale.sapOrderId}
+                        {sale.isManualInvoice && (
+                          <span className="ml-2 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 font-sans">
+                            Factura manual
+                          </span>
+                        )}
+                      </td>
                       <td className="px-5 py-3 text-gray-600">{formatDate(sale.saleDate)}</td>
                       <td className="px-5 py-3 text-right font-medium">{formatCurrency(sale.amount)}</td>
                       <td className="px-5 py-3 text-center">
@@ -168,7 +175,7 @@ export function SalesDetailModal({ userId, isOpen, onClose, month, year }: Sales
 
         {/* Footer */}
         <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-          <span>{total} ventas encontradas</span>
+          <span>{total} compras encontradas</span>
           {sales.length > 0 && (
             <span className="font-semibold text-gray-700">
               Total: {sales.reduce((s, v) => s + v.amount, 0).toLocaleString('es-DO', { style: 'currency', currency: 'DOP', maximumFractionDigits: 0 })}

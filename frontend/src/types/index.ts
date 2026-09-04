@@ -44,6 +44,7 @@ export interface Sale {
   saleDate: string;
   status: string;
   userId: string;
+  isManualInvoice?: boolean;
 }
 
 export interface PaginatedResponse<T> {

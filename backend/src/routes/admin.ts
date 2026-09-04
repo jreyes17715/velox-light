@@ -8,6 +8,25 @@ import axios from 'axios';
 import https from 'https';
 
 const router = Router();
+const ITBIS = 1.18;
+
+// Tipos minimos para /Invoices -- deliberadamente NO se agregan a sapService.ts
+// (esto es una funcionalidad aislada y poco frecuente, ver comentario junto a
+// POST /invoices/manual mas abajo; no se busca repetir la migracion completa
+// de Orders a Invoices que se probo y se revirtio el 25-ago-2026).
+interface ManualInvoiceLine {
+  ItemCode: string;
+  LineTotal: number;
+}
+interface ManualInvoice {
+  DocEntry: number;
+  DocNum: number;
+  CardCode: string;
+  DocDate: string;
+  DocTotal: number;
+  Cancelled: string; // 'tYES' | 'tNO'
+  DocumentLines?: ManualInvoiceLine[];
+}
 
 // GET /api/admin/sap/test — diagnóstico de conexión SAP
 router.get('/sap/test', async (_req: Request, res: Response) => {
@@ -92,6 +111,164 @@ router.get('/sync/logs', async (_req: Request, res: Response) => {
     take: 20,
   });
   res.json(logs);
+});
+
+// POST /api/admin/invoices/manual — agrega Facturas especificas (por DocNum,
+// el numero de documento visible en SAP/impresiones -- antes se pedia DocEntry,
+// cambiado a DocNum el 03-sep-2026 a pedido de Padrino porque es el numero que
+// tiene a mano) como produccion, por fuera del sync normal de Orders. Caso
+// puntual y poco frecuente (2-3 veces/año, confirmado por Padrino 25-ago-2026):
+// facturas que deben contarle a una directora pero que nunca pasaron por una
+// Orden. Body: { docNums: number[] }.
+//
+// Cada factura se guarda como una fila mas de Sale, con el mismo filtro de
+// "solo Seccion 1" que usa el resto del sistema, pero con sapOrderId prefijado
+// "INV-<DocEntry>" (usando el DocEntry real que devuelve SAP -- ese sigue
+// siendo el identificador interno unico, DocNum solo se usa para buscar) y
+// isManualInvoice=true (para poder distinguirla en los historiales de ventas).
+// Pegar el mismo DocNum de nuevo actualiza la misma fila en vez de duplicarla.
+//
+// Nota: DocNum se reinicia cada año fiscal en SAP B1 (a diferencia de DocEntry,
+// que es unico siempre), asi que en teoria podria haber mas de una factura con
+// el mismo DocNum en años distintos. Si el filtro devuelve mas de un resultado,
+// se marca como error en vez de adivinar cual es.
+router.post('/invoices/manual', async (req: Request, res: Response) => {
+  const { docNums } = req.body as { docNums?: unknown };
+
+  if (!Array.isArray(docNums) || docNums.length === 0) {
+    res.status(400).json({ error: 'docNums (array de numeros) es requerido' });
+    return;
+  }
+  const entries = docNums
+    .map((d) => Number(d))
+    .filter((d) => Number.isFinite(d) && d > 0);
+  if (entries.length === 0) {
+    res.status(400).json({ error: 'docNums no tiene numeros validos' });
+    return;
+  }
+
+  logger.info(`ADMIN: agregando facturas manuales, DocNum=${entries.join(',')}`);
+
+  const section1Codes = await fetchSection1ItemCodes();
+  const agregadas: Array<{ docNum: number; sapOrderId: string; userId: string; userName: string; amount: number }> = [];
+  const errores: Array<{ docNum: number; error: string }> = [];
+
+  for (const docNum of entries) {
+    try {
+      const data = await sapGet<{ value: ManualInvoice[] }>('/Invoices', {
+        $filter: `DocNum eq ${docNum}`,
+        $select: 'DocEntry,DocNum,CardCode,DocDate,DocTotal,Cancelled,DocumentLines',
+      });
+      if (!data.value || data.value.length === 0) {
+        errores.push({ docNum, error: 'No encontrada en SAP (/Invoices)' });
+        continue;
+      }
+      if (data.value.length > 1) {
+        errores.push({ docNum, error: `Hay ${data.value.length} facturas con ese DocNum (numeracion repetida entre años) -- pega el DocEntry en su lugar para este caso` });
+        continue;
+      }
+      const invoice = data.value[0];
+
+      const user = await prisma.user.findUnique({
+        where: { sapUserId: invoice.CardCode },
+        select: { sapUserId: true, name: true },
+      });
+      if (!user) {
+        errores.push({ docNum, error: `CardCode ${invoice.CardCode} no existe como usuario en nuestra base` });
+        continue;
+      }
+
+      const lines = invoice.DocumentLines ?? [];
+      let amount: number;
+      if (lines.length === 0) {
+        amount = invoice.DocTotal; // sin lineas, fallback seguro igual que en el sync normal
+      } else {
+        const seccion1Lines = lines.filter((l) => section1Codes.has(l.ItemCode));
+        const sumNeta = seccion1Lines.reduce((s, l) => s + (l.LineTotal ?? 0), 0);
+        amount = sumNeta * ITBIS;
+      }
+
+      const status = invoice.Cancelled === 'tYES' ? 'cancelled' : 'completed';
+      const sapOrderId = `INV-${invoice.DocEntry}`;
+
+      await prisma.sale.upsert({
+        where: { sapOrderId },
+        create: {
+          sapOrderId,
+          userId: invoice.CardCode,
+          amount,
+          currency: 'DOP',
+          saleDate: new Date(invoice.DocDate),
+          status,
+          sapDocNum: invoice.DocNum,
+          sapDocEntry: String(invoice.DocEntry),
+          isManualInvoice: true,
+          syncedAt: new Date(),
+        },
+        update: {
+          amount,
+          status,
+          saleDate: new Date(invoice.DocDate),
+          isManualInvoice: true,
+          syncedAt: new Date(),
+        },
+      });
+
+      agregadas.push({
+        docNum, sapOrderId, userId: invoice.CardCode, userName: user.name,
+        amount: Math.round(amount * 100) / 100,
+      });
+    } catch (error) {
+      errores.push({ docNum, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  res.json({ ok: true, agregadas, errores });
+});
+
+// GET /api/admin/invoices/manual — lista las facturas agregadas manualmente
+router.get('/invoices/manual', async (_req: Request, res: Response) => {
+  try {
+    const sales = await prisma.sale.findMany({
+      where: { isManualInvoice: true },
+      orderBy: { saleDate: 'desc' },
+      include: { user: { select: { name: true, sapUserId: true } } },
+    });
+    res.json(sales.map((s) => ({
+      id: s.id,
+      sapOrderId: s.sapOrderId,
+      sapDocEntry: s.sapDocEntry,
+      sapDocNum: s.sapDocNum,
+      userId: s.userId,
+      userName: s.user.name,
+      amount: Number(s.amount),
+      saleDate: s.saleDate,
+      status: s.status,
+      syncedAt: s.syncedAt,
+    })));
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: msg });
+  }
+});
+
+// DELETE /api/admin/invoices/manual/:id — quita una factura agregada manualmente
+// (por si se pego un DocEntry por error). Solo borra si isManualInvoice=true,
+// para no poder borrar por accidente una venta real sincronizada del flujo normal.
+router.delete('/invoices/manual/:id', async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  try {
+    const sale = await prisma.sale.findUnique({ where: { id } });
+    if (!sale || !sale.isManualInvoice) {
+      res.status(404).json({ error: 'No encontrada, o no es una factura agregada manualmente' });
+      return;
+    }
+    await prisma.sale.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: msg });
+  }
 });
 
 // GET /api/admin/users — todos los usuarios (para asignación)
@@ -209,7 +386,6 @@ router.get('/diag/user/:sapUserId', async (req: Request, res: Response) => {
     ]);
 
     const sapOrders = sapOrdersData.value ?? [];
-    const sapDocEntries = new Set(sapOrders.map(o => String(o.DocEntry)));
     const localDocEntries = new Set(sales.map(s => s.sapOrderId));
     const faltantes = sapOrders.filter(o => !localDocEntries.has(String(o.DocEntry)));
 

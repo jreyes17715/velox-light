@@ -90,7 +90,7 @@ function VentasTab({ targetUserId }: { targetUserId: string }) {
 
     api.get<PaginatedResponse<Sale>>(`/sales?${params}`)
       .then(({ data }) => { if (!cancelled) { setSales(data.data); setTotal(data.total); } })
-      .catch(() => { if (!cancelled) setError('Error cargando ventas.'); })
+      .catch(() => { if (!cancelled) setError('Error cargando compras.'); })
       .finally(() => { if (!cancelled) setIsLoading(false); });
 
     return () => { cancelled = true; };
@@ -134,7 +134,7 @@ function VentasTab({ targetUserId }: { targetUserId: string }) {
 
         <div className="ml-auto flex gap-4">
           <div className="text-right">
-            <p className="text-xs text-gray-500">Total ventas página</p>
+            <p className="text-xs text-gray-500">Total compras página</p>
             <p className="text-base font-bold text-pink-600">{formatCurrency(totalAmount)}</p>
           </div>
           <div className="text-right">
@@ -148,11 +148,11 @@ function VentasTab({ targetUserId }: { targetUserId: string }) {
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
-            <LoadingSpinner message="Cargando ventas..." />
+            <LoadingSpinner message="Cargando compras..." />
           </div>
         ) : sales.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
-            No hay ventas en el período seleccionado
+            No hay compras en el período seleccionado
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -170,7 +170,14 @@ function VentasTab({ targetUserId }: { targetUserId: string }) {
                   const st = statusLabel[sale.status] || { label: sale.status, color: '' };
                   return (
                     <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-3 font-mono text-gray-600 text-xs">{sale.sapOrderId}</td>
+                      <td className="px-5 py-3 font-mono text-gray-600 text-xs">
+                        {sale.sapOrderId}
+                        {sale.isManualInvoice && (
+                          <span className="ml-2 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 font-sans">
+                            Factura manual
+                          </span>
+                        )}
+                      </td>
                       <td className="px-5 py-3 text-gray-600">{formatDate(sale.saleDate)}</td>
                       <td className="px-5 py-3 text-right font-semibold text-gray-800">{formatCurrency(sale.amount)}</td>
                       <td className="px-5 py-3 text-center">
@@ -248,7 +255,7 @@ export default function PerfilPage() {
 
   const TABS = [
     { key: 'resumen' as const, icon: 'fa-solid fa-chart-simple', label: 'Resumen' },
-    { key: 'ventas'  as const, icon: 'fa-solid fa-bag-shopping', label: 'Ventas y Producción' },
+    { key: 'ventas'  as const, icon: 'fa-solid fa-bag-shopping', label: 'Compras y Producción' },
     { key: 'nc'      as const, icon: 'fa-solid fa-file-circle-minus', label: `Notas de Credito (${creditNotes.length})` },
   ];
 
@@ -302,7 +309,7 @@ export default function PerfilPage() {
         {/* Stats del mes */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Ventas del Mes</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Compras del Mes</p>
             <p className="text-xl font-bold text-gray-900 mt-1">{fmt(mesActual.ventas)}</p>
             {totalCreditNotesMes > 0 && (
               <p className="text-xs text-red-500 mt-0.5 flex items-center gap-1">
@@ -399,7 +406,7 @@ export default function PerfilPage() {
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Reclutas personales</span>
+                    <span className="text-gray-500">Asociadas personales</span>
                     <span className="font-medium text-gray-800">{reclutas.length}</span>
                   </div>
                   <div className="flex justify-between">
@@ -415,7 +422,7 @@ export default function PerfilPage() {
               {reclutas.length > 0 && (
                 <div className="bg-white rounded-xl border border-gray-200 p-5">
                   <h2 className="font-semibold text-gray-800 mb-3 text-sm">
-                    <I icon="fa-solid fa-user-plus" className="mr-2 text-pink-500" />Mis Reclutas ({reclutas.length})
+                    <I icon="fa-solid fa-user-plus" className="mr-2 text-pink-500" />Mis Asociadas ({reclutas.length})
                   </h2>
                   <div className="space-y-1 max-h-48 overflow-y-auto">
                     {reclutas.map(r => (

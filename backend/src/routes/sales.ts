@@ -54,6 +54,7 @@ router.get('/', authenticateJWT, async (req: AuthRequest, res: Response) => {
         saleDate: s.saleDate,
         status: s.status,
         userId: s.userId,
+        isManualInvoice: s.isManualInvoice,
       })),
       page: pageNum,
       limit: limitNum,

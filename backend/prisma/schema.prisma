@@ -97,6 +97,13 @@ model Sale {
   sapDocEntry String
   syncedAt   DateTime @default(now())
 
+  // Venta agregada manualmente desde una Factura (OINV) por DocEntry, fuera
+  // del sync normal de Orders -- caso raro (2-3 veces/año) donde una factura
+  // especifica debe contar como produccion aunque nunca paso por una Orden.
+  // Ver POST /api/admin/invoices/manual. sapOrderId de estas filas se guarda
+  // prefijado "INV-<DocEntry>" para no chocar con el DocEntry de una Orden.
+  isManualInvoice Boolean @default(false)
+
   @@index([userId])
   @@index([saleDate])
   @@map("sales")

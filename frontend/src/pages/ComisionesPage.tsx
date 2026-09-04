@@ -119,7 +119,7 @@ export default function ComisionesPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Mis Comisiones</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Cálculo basado en ventas SAP del período seleccionado</p>
+          <p className="text-sm text-gray-500 mt-0.5">Cálculo basado en compras SAP del período seleccionado</p>
         </div>
 
         {/* Selector mes/año */}
@@ -275,7 +275,7 @@ export default function ComisionesPage() {
                 className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors"
               >
                 <span className="font-semibold text-gray-800">
-                  Detalle Tipo C — {data.tipoC.reclutasActivas} activas / {data.tipoC.totalReclutas} reclutas
+                  Detalle Tipo C — {data.tipoC.reclutasActivas} activas / {data.tipoC.totalReclutas} asociadas
                 </span>
                 <span className="text-gray-400 text-lg">{openSection === 'C' ? '▲' : '▼'}</span>
               </button>
@@ -318,7 +318,7 @@ export default function ComisionesPage() {
           {data.totalComision === 0 && (
             <div className="text-center py-12 text-gray-400">
               <p className="text-lg">Sin comisiones para {MONTHS[data.month - 1]} {data.year}</p>
-              <p className="text-sm mt-1">No hay ventas registradas en este período</p>
+              <p className="text-sm mt-1">No hay compras registradas en este período</p>
             </div>
           )}
         </>

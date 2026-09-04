@@ -8,7 +8,7 @@ interface SalesChartProps {
 export function SalesChart({ data }: SalesChartProps) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <h3 className="font-semibold text-gray-800 mb-4">Ventas últimos 30 días</h3>
+      <h3 className="font-semibold text-gray-800 mb-4">Compras últimos 30 días</h3>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -22,7 +22,7 @@ export function SalesChart({ data }: SalesChartProps) {
             tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
           />
           <Tooltip
-            formatter={(value: number) => [formatCurrency(value), 'Ventas']}
+            formatter={(value: number) => [formatCurrency(value), 'Compras']}
             labelFormatter={(label) => `Fecha: ${label}`}
           />
           <Line

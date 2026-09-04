@@ -9,11 +9,11 @@ const ALL_NAV_ITEMS: { to: string; label: string; icon: string; roles: string[] 
   // "Ventas y Produccion" (reporte global) se movio a solo superadmin -- para
   // el resto de roles el historial de ventas propio ahora vive dentro de "Mi
   // Perfil" (pestaña nueva). Ver PerfilPage.tsx. Confirmado 12-ago-2026.
-  { to: '/sales',            label: 'Ventas y Produccion', icon: 'chart',   roles: ['superadmin'] },
+  { to: '/sales',            label: 'Compras y Produccion', icon: 'chart',   roles: ['superadmin'] },
   { to: '/consultoras',      label: 'Consultoras',          icon: 'group',   roles: ['directora', 'diq', 'iniciadora'] },
   // Mismo destino/funcion que antes (celulas de reclutas), solo se le cambio
   // el nombre a "Ventas y Produccion" a pedido de Padrino (12-ago-2026).
-  { to: '/mis-iniciadoras',  label: 'Ventas y Produccion',  icon: 'star',    roles: ['directora', 'diq'] },
+  { to: '/mis-iniciadoras',  label: 'Compras y Produccion',  icon: 'star',    roles: ['directora', 'diq'] },
   // Comisiones oculta de nuevo a pedido de Padrino (25-ago-2026) -- la ruta y
   // pagina siguen existiendo, solo se quita del menu.
   // { to: '/comisiones',    label: 'Comisiones',           icon: 'money',   roles: ['directora', 'consultora', 'diq', 'iniciadora'] },

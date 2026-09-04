@@ -83,7 +83,7 @@ function CelulaCard({ ini }: { ini: IniciadoraNivel1 }) {
               <RoleBadge role={ini.role} />
             </div>
             <p className="text-xs text-gray-400 mt-0.5">
-              {ini.totalReclutas} {ini.totalReclutas === 1 ? 'recluta' : 'reclutas'} · {ini.reclutasActivas} activa{ini.reclutasActivas === 1 ? '' : 's'}
+              {ini.totalReclutas} {ini.totalReclutas === 1 ? 'asociada' : 'asociadas'} · {ini.reclutasActivas} activa{ini.reclutasActivas === 1 ? '' : 's'}
             </p>
           </div>
         </div>
@@ -105,7 +105,7 @@ function CelulaCard({ ini }: { ini: IniciadoraNivel1 }) {
               <p className="text-gray-400 mt-0.5">{ini.pedidosPersonales} pedidos</p>
             </div>
             <div className="bg-white rounded-lg border border-gray-100 p-2.5">
-              <p className="text-gray-400 uppercase font-semibold text-[10px]">Producción de sus reclutas</p>
+              <p className="text-gray-400 uppercase font-semibold text-[10px]">Producción de sus asociadas</p>
               <p className="font-bold text-gray-800 mt-0.5">{formatCurrency(ini.produccionReclutas)}</p>
               <p className="text-gray-400 mt-0.5">Neta: {formatCurrency(ini.produccionNeta)}</p>
             </div>
@@ -132,7 +132,7 @@ function CelulaCard({ ini }: { ini: IniciadoraNivel1 }) {
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-semibold text-gray-800">{formatCurrency(r.ventas)}</p>
                     <span className={`text-[10px] font-medium ${r.activa ? 'text-emerald-600' : 'text-gray-400'}`}>
-                      {r.activa ? 'Activa' : 'Sin ventas'}
+                      {r.activa ? 'Activa' : 'Sin compras'}
                     </span>
                   </div>
                 </div>
@@ -206,11 +206,11 @@ export default function IniciadorasPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 text-center">
                   <p className="text-2xl font-bold text-gray-800">{data.totalReclutas}</p>
-                  <p className="text-xs text-gray-500 mt-1">Reclutas directas</p>
+                  <p className="text-xs text-gray-500 mt-1">Asociadas directas</p>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 text-center">
                   <p className="text-2xl font-bold text-gray-800">{data.totalReclutasNivel2}</p>
-                  <p className="text-xs text-gray-500 mt-1">Reclutas de tus reclutas</p>
+                  <p className="text-xs text-gray-500 mt-1">Asociadas de tus asociadas</p>
                 </div>
                 <div className="bg-purple-50 rounded-xl border border-purple-100 p-4 text-center">
                   <p className="text-2xl font-bold text-purple-700">{formatCurrency(data.produccionTotal)}</p>

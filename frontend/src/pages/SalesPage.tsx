@@ -74,7 +74,7 @@ function SuperAdminSalesView() {
       <div className="flex flex-col min-h-screen">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-bold text-gray-800">Ventas y Producción</h2>
+          <h2 className="text-lg font-bold text-gray-800">Compras y Producción</h2>
           <p className="text-xs text-gray-500">Reporte global — exportable a Excel</p>
         </div>
 
@@ -301,7 +301,7 @@ export function SalesPage() {
       setSales(data.data);
       setTotal(data.total);
     } catch {
-      setError('Error cargando ventas.');
+      setError('Error cargando compras.');
     } finally {
       setIsLoading(false);
     }
@@ -315,8 +315,8 @@ export function SalesPage() {
       <div className="flex flex-col min-h-screen">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-6 py-3">
-          <h2 className="text-lg font-bold text-gray-800">Ventas y Producción</h2>
-          <p className="text-xs text-gray-500">Historial de ventas de {user?.name}</p>
+          <h2 className="text-lg font-bold text-gray-800">Compras y Producción</h2>
+          <p className="text-xs text-gray-500">Historial de compras de {user?.name}</p>
         </div>
 
         <div className="flex-1 p-6 space-y-4 max-w-7xl mx-auto w-full">
@@ -365,7 +365,7 @@ export function SalesPage() {
             {/* Resumen rápido */}
             <div className="ml-auto flex gap-4">
               <div className="text-right">
-                <p className="text-xs text-gray-500">Total ventas página</p>
+                <p className="text-xs text-gray-500">Total compras página</p>
                 <p className="text-base font-bold text-pink-600">{formatCurrency(totalAmount)}</p>
               </div>
               <div className="text-right">
@@ -379,11 +379,11 @@ export function SalesPage() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             {isLoading ? (
               <div className="flex items-center justify-center py-16 text-gray-400">
-                <LoadingSpinner message="Cargando ventas..." />
+                <LoadingSpinner message="Cargando compras..." />
               </div>
             ) : sales.length === 0 ? (
               <div className="flex items-center justify-center py-16 text-gray-400">
-                No hay ventas en el período seleccionado
+                No hay compras en el período seleccionado
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -401,7 +401,14 @@ export function SalesPage() {
                     const st = statusLabel[sale.status] || { label: sale.status, color: '' };
                     return (
                       <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-5 py-3 font-mono text-gray-600 text-xs">{sale.sapOrderId}</td>
+                        <td className="px-5 py-3 font-mono text-gray-600 text-xs">
+                          {sale.sapOrderId}
+                          {sale.isManualInvoice && (
+                            <span className="ml-2 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 font-sans">
+                              Factura manual
+                            </span>
+                          )}
+                        </td>
                         <td className="px-5 py-3 text-gray-600">{formatDate(sale.saleDate)}</td>
                         <td className="px-5 py-3 text-right font-semibold text-gray-800">{formatCurrency(sale.amount)}</td>
                         <td className="px-5 py-3 text-center">

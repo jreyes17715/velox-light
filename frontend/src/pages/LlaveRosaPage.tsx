@@ -804,8 +804,8 @@ function LlaveRosaRanking() {
       <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3">
         <I icon="fa-solid fa-circle-info" className="text-rose-400 mt-0.5" />
         <p className="text-xs text-rose-700 leading-relaxed">
-          La producción mostrada es real (viene de las ventas sincronizadas de SAP). El Nivel (A/B) y la Fase (Calificación/Mantenimiento)
-          se infieren automáticamente del historial de ventas mientras no exista un flujo de inscripción administrativa. El Premio
+          La producción mostrada es real (viene de las compras sincronizadas de SAP). El Nivel (A/B) y la Fase (Calificación/Mantenimiento)
+          se infieren automáticamente del historial de compras mientras no exista un flujo de inscripción administrativa. El Premio
           (Auto/Efectivo) solo se puede editar aquí una vez la directora entra en fase de Mantenimiento.
         </p>
       </div>

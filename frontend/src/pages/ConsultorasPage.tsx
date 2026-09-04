@@ -134,7 +134,7 @@ export function ConsultorasPage() {
                       Nombre {sortKey === 'name' ? (sortAsc ? '↑' : '↓') : ''}
                     </th>
                     <th className="text-right px-5 py-3 cursor-pointer hover:text-gray-700" onClick={() => handleSort('totalSales')}>
-                      Ventas {sortKey === 'totalSales' ? (sortAsc ? '↑' : '↓') : ''}
+                      Compras {sortKey === 'totalSales' ? (sortAsc ? '↑' : '↓') : ''}
                     </th>
                     <th className="text-right px-5 py-3">Meta</th>
                     <th className="text-left px-5 py-3 min-w-44 cursor-pointer hover:text-gray-700" onClick={() => handleSort('achievementPercent')}>
@@ -190,7 +190,7 @@ export function ConsultorasPage() {
                             onClick={() => setSelectedUserId(c.sapUserId)}
                             className="text-pink-600 hover:text-pink-800 text-xs font-medium bg-pink-50 hover:bg-pink-100 px-3 py-1 rounded-lg transition-colors"
                           >
-                            Ver ventas
+                            Ver compras
                           </button>
                         </td>
                       </tr>

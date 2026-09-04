@@ -33,7 +33,7 @@ export function ProductionChart({ data }: ProductionChartProps) {
           <Tooltip
             formatter={(value: number, name: string) => [
               formatCurrency(value),
-              name === 'ventas' ? 'Ventas' : 'Meta',
+              name === 'ventas' ? 'Compras' : 'Meta',
             ]}
           />
           <Bar dataKey="meta" fill="#fce7f3" radius={[0, 4, 4, 0]} barSize={10} />
@@ -42,7 +42,7 @@ export function ProductionChart({ data }: ProductionChartProps) {
       </ResponsiveContainer>
       <div className="flex gap-4 mt-2 justify-end">
         <div className="flex items-center gap-1.5 text-xs text-gray-500">
-          <div className="w-3 h-3 rounded-sm bg-pink-600" /> Ventas
+          <div className="w-3 h-3 rounded-sm bg-pink-600" /> Compras
         </div>
         <div className="flex items-center gap-1.5 text-xs text-gray-500">
           <div className="w-3 h-3 rounded-sm bg-pink-100" /> Meta
